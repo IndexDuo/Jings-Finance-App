@@ -2,6 +2,8 @@
 
 Jing’s Finance App is a USD, English-language personal finance application. It uses Node 24, Next.js, Supabase email/password Auth, and PostgreSQL.
 
+For Linux or WSL with [nvm](https://github.com/nvm-sh/nvm), run `nvm install` and `nvm use` inside the cloned repository. The checked-in `.nvmrc` selects the same Node version as `.node-version`. Check `node -v` before installing dependencies; Node 20 does not meet this app’s requirements. Use the npm bundled with Node 24.
+
 1. Install dependencies with `npm ci` using Node 24.
 2. Create a **fresh Supabase project**. Enable email/password signup. Keep email confirmation enabled unless deliberately configuring a private installation.
 3. Copy `.env.example` to `.env.local`. Set the Supabase URL, its **public** anon/publishable key, and the **server-only** PostgreSQL connection string. Obtain the direct or pooler connection from Supabase's connection settings. Percent-encode special characters in the password. Require TLS for a hosted database. IPv4-only hosts can use Supabase's pooler.
@@ -11,6 +13,8 @@ Jing’s Finance App is a USD, English-language personal finance application. It
 7. For production, run `npm run build` then `npm start`, or configure the same three environment variables on Vercel and deploy the Next.js application. Configure the production Auth Site URL and redirect allowlist before inviting users. No cron or stock API key is needed.
 
 Bills and envelopes are optional during onboarding. Adding them later defaults to updating the current paycheck while it is unused; Settings also offers Next paycheck. Remaining financial activity protects the current budget. Deleting a mistaken ordinary Log entry restores immediate editing when no other spending, payments, or funding remains. Pay amount and schedule edits remain deferred. See `docs/ACCOUNTING.md` for the opening-paycheck and funding rules.
+
+If an older checkout reports missing `esbuild` entries during `npm ci`, pull the latest changes, select Node 24, and retry. The lockfile includes the optional build-tool peer dependencies needed by npm 11.3 as well as newer npm releases. Existing installations keep their environment configuration and database; application updates do not require rerunning `db:setup`.
 
 ### Supabase certificate trust
 

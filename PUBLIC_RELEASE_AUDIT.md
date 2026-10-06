@@ -136,6 +136,12 @@ All 22 screenshots were visually reviewed and their PNG integrity/dimensions che
 
 No schema, dependency, remote, hosted database, or deployment changes were made. Existing installations retain their database and `.env.local` and must not rerun `db:setup`. The fictional walkthrough is available for review; a live hosted demo remains a separate future decision.
 
+## Installation compatibility follow-up
+
+Reproduced the reported missing `esbuild` lockfile entries with npm 11.3.0 even on Node 24; npm 11.9.0 accepted the earlier lockfile. Repaired the lockfile by recording Vite's optional esbuild peer and its platform packages. Every existing dependency version and the package manifest remain unchanged. Added `.nvmrc` matching `.node-version`, and clarified Linux/WSL Node selection and update instructions in `docs/INSTALL.md`.
+
+A clean npm 11.3.0 install succeeded with the repaired lockfile, and npm 11.9.0 lockfile validation passed. The freshly installed snapshot passed **402 tests across 48 files**, lint, and production build/TypeScript. Verification uses an isolated source snapshot with disposable local fixtures; no hosted database or user data was changed. The separate README revision remains local for author review.
+
 ## Remaining publication decisions and limitations
 
 - **Personal information:** no known financial information/secrets in publication files. Original license attribution and repository provenance intentionally identify the owner. Review that attribution and the diff before publishing.
