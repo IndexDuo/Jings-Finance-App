@@ -18,6 +18,8 @@ export interface ConfigurationVersion extends Configuration {
   supersedes?: number[];
   scheduleEffectiveDate?: string;
   priorSchedules?: ({ effectiveDate: string; payAnchorDate: string } & PaySchedule)[];
+  /** Explicit opt-in: older accounts must never acquire retroactive opening grants. */
+  openingBudgetDate?: string;
 }
 
 /** Legacy audit-only submissions have unresolved IDs and are not configurations. */

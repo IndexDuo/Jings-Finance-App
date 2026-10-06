@@ -16,7 +16,8 @@ import { z } from "zod";
 import { calendarDateSchema } from "@/lib/date-schema";
 
 import { db, schema } from "@/lib/db";
-import { loadFinancialConfiguration } from "@/features/financial-settings/server";
+import { loadFinancialConfiguration, financialConfigurationMatches } from "@/features/financial-settings/server";
+import { lockAllocationOwner } from "@/features/allocations/server";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { Money } from "@/lib/money";
 import { createClient } from "@/lib/supabase/server";
@@ -331,6 +332,8 @@ async function reconcileAutomaticGoalSavings(userId: string): Promise<number> {
       const amountCents = Math.min(availableCents, desiredCents);
 
       const credited = await db.transaction(async (tx) => {
+        await lockAllocationOwner(tx, userId);
+        if (!await financialConfigurationMatches(userId, configuration.versions, tx)) return false;
         const [inserted] = await tx
           .insert(schema.goalSavingTransfers)
           .values({
@@ -400,6 +403,7 @@ export async function addGoal(input: unknown): Promise<MutateResult> {
   const storageType = recommendStorage(parseLocalIsoDate(targetDate), await getUserToday(userId));
 
   await db.transaction(async (tx) => {
+    await lockAllocationOwner(tx, userId);
     const [goal] = await tx
       .insert(schema.goals)
       .values({
@@ -548,6 +552,7 @@ export async function updateGoalFunding(
   try {
     await db.transaction(async (tx) => {
       // Serialize corrections before reading their existing manual total.
+      await lockAllocationOwner(tx, userId);
       const [goal] = await tx.select().from(schema.goals)
         .where(and(eq(schema.goals.id, id), eq(schema.goals.userId, userId))).for("update");
       if (!goal) throw new PublicActionError("Unknown plan");
@@ -604,6 +609,7 @@ export async function recoverGoalFunding(
   if (!goal) return { ok: false, error: "Unknown plan" };
 
   await db.transaction(async (tx) => {
+    await lockAllocationOwner(tx, userId);
     await tx.insert(schema.goalFundingEvents).values({
       userId,
       goalId: id,

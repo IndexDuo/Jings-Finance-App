@@ -79,6 +79,8 @@ export async function loadFinancialSnapshot(args: {
       return { active: Boolean(row && (!row.archivedAt || date < format(row.archivedAt, "yyyy-MM-dd"))), overflowEnvelopeId: row?.overflowEnvelopeId ?? null };
     },
     asOfDate,
+    trackingStartDate: configuration.openingBudgetDate,
+    openingPeriodStartDate: configuration.period(trackingStartDate).current,
     paySchedule: settings,
     scheduleForDate: date => configuration.at(date).settings,
     payAnchorDate: settings?.payAnchorDate ?? asOfDate,

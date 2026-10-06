@@ -1,6 +1,7 @@
 import { getUserToday } from "@/lib/user-timezone";
 import { loadBillFunding } from "@/features/fixed-expenses/funding";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
+import { currentBudgetEligibility } from "@/features/financial-settings/timing";
 import { format } from "date-fns";
 
 import { redirect } from "next/navigation";
@@ -62,12 +63,17 @@ export default async function SettingsPage() {
     const pending = configuration.versions.find(v => v.effectiveDate > todayIso);
     const boundary = pending?.scheduleEffectiveDate ?? pending?.effectiveDate;
     const nextBoundary = boundary && boundary > todayIso ? boundary : configuration.period(todayIso).next ?? todayIso;
+    const eligibility = await currentBudgetEligibility(userId, todayIso, configuration, settingsRow);
 
     return (
         <SettingsForm
+            canApplyNow={eligibility.canApplyNow}
+            currentPeriodStart={eligibility.currentPeriod > settingsRow.trackingStartDate ? eligibility.currentPeriod : settingsRow.trackingStartDate}
+            immediateUnavailableReason={eligibility.reason}
             trackedBillIds={billFunding.policies.filter(p => p.activationPayDate).map(p => p.fixedExpenseId)}
             nextBoundary={nextBoundary}
-            refillAnchors={Object.fromEntries(envelopeRows.map(row => [row.id, row.accrualStartDate]))}
+            refillAnchors={Object.fromEntries(envelopeRows.map(row => [row.id,
+                row.accrualStartDate < settingsRow.trackingStartDate ? settingsRow.trackingStartDate : row.accrualStartDate]))}
             scheduledDate={pending?.effectiveDate}
             initial={{
                 takeHomeCents: settingsRow.takeHomeCents,

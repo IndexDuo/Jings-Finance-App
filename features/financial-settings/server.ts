@@ -1,8 +1,17 @@
 import { eq } from "drizzle-orm";
+import { redirect } from "next/navigation";
 import { db, schema } from "@/lib/db";
 import { configurationAt, configurationPaydays, configurationPayPeriod, configurationVersions, type Configuration } from "./lib/versions";
 import { resolvePaymentSchedule } from "@/features/fixed-expenses/lib/payment-schedule";
 import type { Period } from "@/features/paycheck/lib/proration";
+
+/** Funding computed before acquiring the owner lock must not use an older budget. */
+export async function financialConfigurationMatches(userId: string, versions: readonly { sequence: number }[], conn: Pick<typeof db, "select">) {
+  const rows = await conn.select().from(schema.financialSettingsRevisions)
+    .where(eq(schema.financialSettingsRevisions.userId, userId));
+  const key = (values: readonly { sequence: number }[]) => values.map(v => v.sequence).sort((a, b) => a - b).join(",");
+  return key(configurationVersions(rows)) === key(versions);
+}
 
 export async function loadFinancialConfiguration(userId: string, conn: Pick<typeof db, "select"> = db) {
   const [[settings], fixedExpenses, envelopes, revisions, payments, policies, billPolicies] = await Promise.all([
@@ -14,9 +23,12 @@ export async function loadFinancialConfiguration(userId: string, conn: Pick<type
     conn.select().from(schema.envelopePolicyVersions).where(eq(schema.envelopePolicyVersions.userId, userId)),
     conn.select().from(schema.billFundingPolicies).where(eq(schema.billFundingPolicies.userId, userId)),
   ]);
-  if (!settings) throw new Error("Settings are missing");
+  // Pages render concurrently with their layout. Match its onboarding gate
+  // instead of racing the layout's redirect with a financial-data error.
+  if (!settings) redirect("/onboarding");
   const fallback: Configuration = { settings, fixedExpenses, envelopes };
   const versions = configurationVersions(revisions);
+  const openingBudgetDate = versions.find(v => v.openingBudgetDate)?.openingBudgetDate;
   const configuredIds = new Set(versions.flatMap(v => v.envelopes.map(e => e.id)));
   const at = (date: string) => {
     const config = configurationAt(versions, fallback, date);
@@ -43,7 +55,7 @@ export async function loadFinancialConfiguration(userId: string, conn: Pick<type
       }),
     };
   };
-  return { versions, fallback, at,
+  return { versions, fallback, at, openingBudgetDate,
     paydays: (from: string, to: string) => configurationPaydays(versions, fallback, from, to),
     period: (date: string) => configurationPayPeriod(versions, fallback, date),
   };

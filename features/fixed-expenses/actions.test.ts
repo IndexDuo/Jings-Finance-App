@@ -22,6 +22,7 @@ vi.mock("@/lib/db", async () => {
     db: {
       select: () => ({ from: () => ({ where: () => ({ limit: mocks.expense }) }) }),
       transaction: async (callback: (tx: unknown) => Promise<void>) => callback({
+        select: () => ({ from: () => ({ where: () => ({ for: async () => [{ id: "owner" }] }) }) }),
         insert: () => ({ values: (values: unknown) => {
           mocks.insert(values);
           return { returning: async () => [{ id: "transaction" }] };

@@ -1,6 +1,7 @@
 "use server";
 
-import { actionError } from "@/lib/action-error";
+import { actionError, PublicActionError } from "@/lib/action-error";
+import { lockAllocationOwner } from "@/features/allocations/server";
 
 
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
@@ -43,12 +44,12 @@ export async function confirmFixedExpensePayment(
   if (!userId) return { ok: false, error: "Not signed in" };
 
   const { fixedExpenseId, dueDate, paidDate, actualCents } = parsed.data;
-  const configuration = await loadFinancialConfiguration(userId);
-  const expense = configuration.at(dueDate).fixedExpenses.find(e => e.id === fixedExpenseId);
-  if (!expense) return { ok: false, error: "Unknown fixed expense" };
-
   try {
     await db.transaction(async (tx) => {
+      await lockAllocationOwner(tx, userId);
+      const configuration = await loadFinancialConfiguration(userId, tx);
+      const expense = configuration.at(dueDate).fixedExpenses.find(e => e.id === fixedExpenseId);
+      if (!expense) throw new PublicActionError("Unknown fixed expense");
       const [transaction] = await tx
         .insert(schema.transactions)
         .values({

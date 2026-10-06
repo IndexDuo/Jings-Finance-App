@@ -85,16 +85,18 @@ export function SettingsSave({
   busy,
   effectiveDate,
   label = "Save changes",
+  applyNow = false,
 }: {
   busy: boolean;
   effectiveDate?: string;
   label?: string;
+  applyNow?: boolean;
 }) {
   return (
     <div className="sticky bottom-0 space-y-3 bg-system-bg pt-5 pb-1">
       {effectiveDate && (
         <p className="text-center text-[13px] text-secondary-label">
-          Changes start {settingsDate(effectiveDate)}
+          {applyNow ? "Updates this paycheck immediately" : `Changes start ${settingsDate(effectiveDate)}`}
         </p>
       )}
       <button
@@ -168,8 +170,10 @@ interface SectionProps<T> {
   /** Settings commits one edit; onboarding keeps changes in its local draft. */
   onCommit?: (items: T[]) => Promise<string | null>;
   effectiveDate?: string;
+  applyNow?: boolean;
   heading?: string;
   refillAnchors?: Record<string, string>;
+  currentPeriodStart?: string;
 }
 
 function ListHeading({
@@ -291,6 +295,7 @@ function Removal({
   busy,
   error,
   effectiveDate,
+  applyNow,
 }: {
   name: string;
   close: () => void;
@@ -298,6 +303,7 @@ function Removal({
   busy: boolean;
   error: string | null;
   effectiveDate?: string;
+  applyNow?: boolean;
 }) {
   return (
     <SettingsSheet title={`Remove ${name}?`} onClose={close} busy={busy}>
@@ -308,7 +314,7 @@ function Removal({
         }}
       >
         <p className="text-[15px] text-secondary-label">
-          {effectiveDate
+          {applyNow ? "Recalculate this paycheck's budget without changing earlier paychecks." : effectiveDate
             ? "Future budgets will stop. Existing logs and this paycheck stay unchanged."
             : "Remove this item from your setup."}
         </p>
@@ -320,6 +326,7 @@ function Removal({
         <SettingsSave
           busy={busy}
           effectiveDate={effectiveDate}
+          applyNow={applyNow}
           label="Remove"
         />
       </form>
@@ -549,6 +556,7 @@ export function FixedExpensesSection(props: SectionProps<FixedExpenseInput> & { 
               <SettingsSave
                 busy={editor.busy}
                 effectiveDate={props.effectiveDate}
+                applyNow={props.applyNow}
                 label={
                   props.onCommit
                     ? "Save changes"
@@ -573,6 +581,7 @@ export function FixedExpensesSection(props: SectionProps<FixedExpenseInput> & { 
           busy={editor.busy}
           error={editor.error}
           effectiveDate={props.effectiveDate}
+          applyNow={props.applyNow}
         />
       )}
     </div>
@@ -594,9 +603,9 @@ export function EnvelopesSection(props: SectionProps<EnvelopeInput> & { paySched
   const [draft, setDraft] = useState<EnvelopeInput>(blankEnvelope);
   const [amount, setAmount] = useState<number | null>(null);
   const recurring = draft.recurrence !== "one-time";
-  const refillAnchor = draft.id
-    ? props.refillAnchors?.[draft.id]
-    : props.effectiveDate;
+  const existingAnchor = draft.id ? props.refillAnchors?.[draft.id] : undefined;
+  const refillAnchor = props.applyNow && props.currentPeriodStart && (!existingAnchor || existingAnchor > props.currentPeriodStart)
+    ? props.currentPeriodStart : existingAnchor ?? props.effectiveDate;
   const refillSchedule =
     draft.period === "weekly" && draft.rolloverBehavior === "accumulate"
       ? refillAnchor
@@ -930,6 +939,7 @@ export function EnvelopesSection(props: SectionProps<EnvelopeInput> & { paySched
               <SettingsSave
                 busy={editor.busy}
                 effectiveDate={props.effectiveDate}
+                applyNow={props.applyNow}
                 label={
                   props.onCommit
                     ? "Save changes"
@@ -954,6 +964,7 @@ export function EnvelopesSection(props: SectionProps<EnvelopeInput> & { paySched
           busy={editor.busy}
           error={editor.error}
           effectiveDate={props.effectiveDate}
+          applyNow={props.applyNow}
         />
       )}
     </div>

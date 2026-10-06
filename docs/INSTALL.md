@@ -10,6 +10,12 @@ This is a USD, English-language personal finance application. It uses Node 24, N
 6. Start with `npm run dev`, open `/signup`, confirm the email, sign in, and complete onboarding. Onboarding asks for pay, schedule, timezone, optional bills, and optional spending envelopes. Accounts start with empty financial records.
 7. For production, run `npm run build` then `npm start`, or configure the same three environment variables on Vercel and deploy the Next.js application. Configure the production Auth Site URL and redirect allowlist before inviting users. No cron or stock API key is needed.
 
+Bills and envelopes are optional during onboarding. Adding them later defaults to updating the current paycheck while it is unused; Settings also offers Next paycheck. Recorded financial activity protects the current budget. Pay amount and schedule edits remain deferred. See `docs/ACCOUNTING.md` for the opening-paycheck and funding rules.
+
+### Supabase certificate trust
+
+For `sslmode=verify-full`, download your project's CA certificate from Supabase Database Settings → SSL Configuration. For local installation, save it beside `package.json` as `supabase-ca.crt` and append `&sslrootcert=./supabase-ca.crt` to the existing `DATABASE_URL` after `?sslmode=verify-full`. This resolves `SELF_SIGNED_CERT_IN_CHAIN` by trusting the supplied CA while still checking the server hostname. Use a certificate path available to the deployed server when hosting; a local file path does not automatically exist there.
+
 ## Email confirmation and password reset
 
 The default Supabase email links work with the PKCE `/auth/callback` flow when opened in the browser that initiated signup or reset. Opening a PKCE link in another browser can lack its verifier. The app also provides `/auth/confirm` for token-hash templates that work across browsers.

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { addDays, format } from "date-fns";
 import { GroupedCard } from "@/components/ui/card";
 import { MoneyInput } from "@/components/ui/money-input";
@@ -26,6 +26,7 @@ import {
 import { ScheduleFields, type SchedulePreferences } from "@/features/onboarding/schedule-fields";
 import { PAY_FREQUENCY_LABELS } from "@/lib/pay-schedule";
 import { nextPayDate, parseLocalIsoDate } from "@/lib/dates";
+import type { BudgetTiming } from "@/features/financial-settings/timing";
 
 export type SettingsFormInitial = OnboardingInput & {
   trackingStartDate: string;
@@ -37,12 +38,18 @@ export function SettingsForm({
   scheduledDate,
   refillAnchors,
   trackedBillIds,
+  canApplyNow,
+  immediateUnavailableReason,
+  currentPeriodStart,
 }: {
   initial: SettingsFormInitial;
   trackedBillIds?: string[];
   nextBoundary: string;
   scheduledDate?: string;
   refillAnchors?: Record<string, string>;
+  canApplyNow: boolean;
+  immediateUnavailableReason: "activity" | "pay-change" | null;
+  currentPeriodStart: string;
 }) {
   const router = useRouter();
   const [view, setView] = useState<"Settings" | "Bills" | "Envelopes">(
@@ -56,6 +63,13 @@ export function SettingsForm({
   const [anchor, setAnchor] = useState(initial.payAnchorDate);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [budgetTiming, setBudgetTiming] = useState<BudgetTiming>(canApplyNow ? "current" : "next");
+  const applyNow = canApplyNow && budgetTiming === "current";
+  useEffect(() => {
+    if (!saved) return;
+    const timer = setTimeout(() => setSaved(false), 5000);
+    return () => clearTimeout(timer);
+  }, [saved]);
   const [transitionPending, startTransition] = useTransition();
   const [savedSnapshot, setSavedSnapshot] =
     useState<SettingsFormInitial | null>(null);
@@ -91,7 +105,7 @@ export function SettingsForm({
     return new Promise((resolve) => {
       startTransition(async () => {
         try {
-          const result = await completeOnboarding(parsed.data);
+          const result = await completeOnboarding(parsed.data, view === "Settings" ? "next" : applyNow ? "current" : "next");
           if (!result.ok) {
             resolve(result.error);
             return;
@@ -120,6 +134,7 @@ export function SettingsForm({
           else {
             setView("Settings");
             setError(null);
+            setSaved(false);
           }
         }}
         className="mb-3 inline-flex min-h-11 items-center gap-1 text-[15px] font-medium text-system-blue"
@@ -147,6 +162,7 @@ export function SettingsForm({
                       setAnchor(initial.payAnchorDate);
                       setPreferences(initial);
                       setError(null);
+                      setSaved(false);
                       setPayOpen(true);
                     }}
                     className="flex h-11 w-11 items-center justify-center text-secondary-label"
@@ -176,6 +192,7 @@ export function SettingsForm({
                   onClick={() => {
                     setView(section);
                     setError(null);
+                    setSaved(false);
                   }}
                   className="flex min-h-16 w-full items-center gap-3 border-b border-separator px-5 py-4 text-left last:border-0"
                 >
@@ -218,6 +235,7 @@ export function SettingsForm({
             onError={setError}
             onCommit={(fixedExpenses) => commit({ fixedExpenses })}
             effectiveDate={effectiveDate}
+            applyNow={applyNow}
           />
         )}
         {view === "Envelopes" && (
@@ -225,27 +243,49 @@ export function SettingsForm({
             paySchedule={initial}
             heading="Envelopes"
             refillAnchors={refillAnchors}
+            currentPeriodStart={currentPeriodStart}
             items={initial.envelopes}
             onError={setError}
             onCommit={(envelopes) => commit({ envelopes })}
             effectiveDate={effectiveDate}
+            applyNow={applyNow}
           />
         )}
-        {scheduledDate && (
+        {view !== "Settings" && (
+          <div className="space-y-2">
+            <SettingsField label="Apply budget changes">
+              <select aria-label="Apply budget changes" className={settingsInput}
+                value={applyNow ? "current" : "next"}
+                onChange={event => { setBudgetTiming(event.target.value as BudgetTiming); setSaved(false); }}>
+                <option value="current" disabled={!canApplyNow}>This paycheck</option>
+                <option value="next">Next paycheck</option>
+              </select>
+            </SettingsField>
+            <p className="text-[13px] text-secondary-label">
+              {canApplyNow
+                ? applyNow ? "This paycheck is unused. Changes update its budget immediately; earlier paychecks stay unchanged."
+                  : `Changes start ${settingsDate(effectiveDate)}. This paycheck stays unchanged.`
+                : immediateUnavailableReason === "pay-change"
+                  ? "A pay change is scheduled. Budget edits follow that change next paycheck."
+                  : "This paycheck has recorded activity. Changes start next paycheck to protect money already used."}
+            </p>
+          </div>
+        )}
+        {scheduledDate && view === "Settings" && (
           <p className="text-[13px] text-secondary-label">
             Showing settings scheduled for {settingsDate(scheduledDate)}. This
             paycheck stays unchanged.
           </p>
         )}
       </fieldset>
-      <div className="mt-8 flex flex-wrap gap-4 text-system-blue">
+      {view === "Settings" && <div className="mt-8 flex flex-wrap gap-4 text-system-blue">
         <Link href="/reset-password">Reset password</Link>
         <button type="button" disabled={pending} onClick={async () => {
           const { error } = await createClient().auth.signOut();
           if (error) setError("Could not sign out. Please try again.");
           else window.location.replace("/login");
         }}>Sign out</button>
-      </div>
+      </div>}
       {saved && (
         <p role="status" className="mt-4 text-[13px] text-system-green">
           Changes saved.

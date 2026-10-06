@@ -1,14 +1,16 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { and, asc, eq, gt, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNull } from "drizzle-orm";
 import { addDays, format } from "date-fns";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
+import { currentBudgetEligibility, type BudgetTiming } from "@/features/financial-settings/timing";
+import { PublicActionError, actionError } from "@/lib/action-error";
 
 import { db, schema } from "@/lib/db";
 import { createClient } from "@/lib/supabase/server";
 import { advanceFixedExpenseDueDate } from "@/features/fixed-expenses/lib/schedule";
-import { nextPayDate, parseLocalIsoDate, todayInUserTz } from "@/lib/dates";
+import { nextPayDate, previousPayDate, parseLocalIsoDate, todayInUserTz } from "@/lib/dates";
 
 import { onboardingInputSchema } from "./schemas";
 
@@ -18,7 +20,9 @@ export type CompleteOnboardingResult =
 
 export async function completeOnboarding(
     input: unknown,
+    budgetTiming: BudgetTiming = "next",
 ): Promise<CompleteOnboardingResult> {
+    if (budgetTiming !== "current" && budgetTiming !== "next") return { ok: false, error: "Choose when these changes should apply." };
     const parsed = onboardingInputSchema.safeParse(input);
     if (!parsed.success) {
         return {
@@ -65,6 +69,15 @@ export async function completeOnboarding(
             todayIso;
 
         const history = existingSettings ? await loadFinancialConfiguration(userId, tx) : null;
+        const immediate = !history || budgetTiming === "current";
+        const eligibility = history && immediate
+            ? await currentBudgetEligibility(userId, todayIso, history, { ...history.at(todayIso).settings, ...data }, tx)
+            : null;
+        if (eligibility && !eligibility.canApplyNow) throw new PublicActionError(
+            eligibility.reason === "pay-change"
+                ? "Pay changes start next paycheck. Save those separately before changing this paycheck's budget."
+                : "This paycheck now has recorded activity. Choose Next paycheck to keep that money protected.",
+        );
         const billPolicies = await tx.select().from(schema.billFundingPolicies).where(eq(schema.billFundingPolicies.userId, userId));
         const billEvents = await tx.select().from(schema.billFundingEvents).where(eq(schema.billFundingEvents.userId, userId));
         const billSettlements = await tx.select().from(schema.billSettlements).where(eq(schema.billSettlements.userId, userId));
@@ -74,7 +87,7 @@ export async function completeOnboarding(
             const openReserve = billEvents.some(e => e.fixedExpenseId === policy.fixedExpenseId && e.amountCents > 0 && !billSettlements.some(r => r.fixedExpenseId === e.fixedExpenseId && r.dueDate === e.dueDate));
             if (!incoming && !openReserve) continue;
             if (!incoming || incoming.frequency !== policy.frequency || (incoming.nextDueDate && current?.nextDueDate && incoming.nextDueDate !== current.nextDueDate)) {
-                throw new Error("This bill has tracked funding. Keep its billing schedule and use Log to confirm each bill before removing or rescheduling it. Its amount can still be updated.");
+                throw new PublicActionError("This bill has tracked funding. Keep its billing schedule and use Log to confirm each bill before removing or rescheduling it. Its amount can still be updated.");
             }
         }
         const pending = history?.versions.find(v => v.effectiveDate > todayIso);
@@ -85,9 +98,18 @@ export async function completeOnboarding(
                 ? [{ effectiveDate: pendingBoundary, payAnchorDate: pending.settings.payAnchorDate, payFrequency: pending.settings.payFrequency, semimonthlyDays: pending.settings.semimonthlyDays }] : [])];
         // Replace only the not-yet-started schedule. Do not pay both the old
         // next payday and the new anchor's first payday during the transition.
-        const effectiveDate = history ? format(nextPayDate(parseLocalIsoDate(data.payAnchorDate),
-            addDays(parseLocalIsoDate(nextExistingPayday), -1), data), "yyyy-MM-dd") : todayIso;
+        const effectiveDate = immediate
+            ? eligibility?.currentPeriod ?? format(previousPayDate(parseLocalIsoDate(data.payAnchorDate), parseLocalIsoDate(todayIso), data), "yyyy-MM-dd")
+            : format(nextPayDate(parseLocalIsoDate(data.payAnchorDate), addDays(parseLocalIsoDate(nextExistingPayday), -1), data), "yyyy-MM-dd");
         const sequence = Math.max(0, ...(history?.versions.map(v => v.sequence) ?? []));
+        const replacedVersions = history?.versions.filter(v => immediate ? v.effectiveDate >= effectiveDate : v.effectiveDate > todayIso) ?? [];
+        const preservedSchedules = immediate ? replacedVersions.flatMap(v => [
+            ...(v.priorSchedules ?? []),
+            { effectiveDate: v.scheduleEffectiveDate ?? v.effectiveDate, payAnchorDate: v.settings.payAnchorDate,
+                payFrequency: v.settings.payFrequency, semimonthlyDays: v.settings.semimonthlyDays },
+        ]).filter(v => v.effectiveDate < effectiveDate) : priorSchedules;
+        const openingBudgetDate = history?.openingBudgetDate ??
+            (immediate && trackingStartDate >= effectiveDate ? trackingStartDate : undefined);
         if (history && history.versions.length === 0) {
             await tx.insert(schema.financialSettingsRevisions).values({ userId,
                 effectiveDate: "0001-01-01",
@@ -236,6 +258,14 @@ export async function completeOnboarding(
                 recurrence: row.recurrence,
             });
         }
+        if (history && immediate) {
+            // Rebudget only the unused current period. Superseded policies are
+            // retained in the immutable audit, and all earlier cycles stay intact.
+            await tx.delete(schema.envelopePolicyVersions).where(and(
+                eq(schema.envelopePolicyVersions.userId, userId),
+                gte(schema.envelopePolicyVersions.effectiveDate, effectiveDate),
+            ));
+        }
         const incomingEnvIds = new Set(
             data.envelopes
                 .map((e) => e.id)
@@ -244,7 +274,8 @@ export async function completeOnboarding(
 
         const envsToDelete = [...existingEnvIds].filter((id) => {
             const existing = existingEnvById.get(id);
-            return !incomingEnvIds.has(id) && !existing?.archivedAt;
+            return !incomingEnvIds.has(id) && (!existing?.archivedAt ||
+                (immediate && format(existing.archivedAt, "yyyy-MM-dd") >= effectiveDate));
         });
         if (envsToDelete.length > 0) {
             for (const envelopeId of envsToDelete) {
@@ -307,6 +338,8 @@ export async function completeOnboarding(
                         rolloverBehavior: e.rolloverBehavior,
                         recurrence: e.recurrence,
                         archivedAt: null,
+                        ...(immediate && existing.accrualStartDate > effectiveDate
+                            ? { accrualStartDate: effectiveDate } : {}),
                     })
                     .where(
                         and(
@@ -314,7 +347,7 @@ export async function completeOnboarding(
                             eq(schema.envelopes.userId, userId),
                         ),
                     );
-                if (policyChanged || wasArchived || existingSettings?.payAnchorDate !== data.payAnchorDate) {
+                if (immediate || policyChanged || wasArchived || existingSettings?.payAnchorDate !== data.payAnchorDate) {
                     const [pendingPolicy] = await tx
                         .select({
                             effectiveDate:
@@ -445,9 +478,10 @@ export async function completeOnboarding(
         // an audit-only copy of form fields. Previous versions remain immutable.
         await tx.insert(schema.financialSettingsRevisions).values({ userId, effectiveDate,
             snapshot: { kind: "financial-config-v1", sequence: sequence + 2,
-                scheduleEffectiveDate: nextExistingPayday,
-                priorSchedules,
-                supersedes: history?.versions.filter(v => v.effectiveDate > todayIso).map(v => v.sequence) ?? [],
+                scheduleEffectiveDate: immediate ? effectiveDate : nextExistingPayday,
+                priorSchedules: preservedSchedules,
+                openingBudgetDate,
+                supersedes: replacedVersions.map(v => v.sequence),
                 settings: savedSettings, fixedExpenses: savedFixed, envelopes: savedEnvelopes },
         });
     });
@@ -457,11 +491,11 @@ export async function completeOnboarding(
     revalidatePath("/log");
     revalidatePath("/paycheck");
     revalidatePath("/", "layout");
-    } catch {
+    } catch (error) {
         console.error("completeOnboarding failed");
         return {
             ok: false,
-            error: "We couldn't save onboarding. Please try again.",
+            error: actionError(error, "We couldn't save your settings. Please try again."),
         };
     }
 

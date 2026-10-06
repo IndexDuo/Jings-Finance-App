@@ -6,6 +6,7 @@ import { calendarDateSchema } from "@/lib/date-schema";
 import { revalidatePath } from "next/cache";
 
 import { db, schema } from "@/lib/db";
+import { lockAllocationOwner } from "@/features/allocations/server";
 import { createClient } from "@/lib/supabase/server";
 
 import { loadInvestmentAdvanceForPeriod } from "./server";
@@ -81,6 +82,7 @@ export async function recordInvestmentTransfer(
 
   try {
     await db.transaction(async (tx) => {
+      await lockAllocationOwner(tx, user.id);
       const [existing] = await tx
         .select()
         .from(schema.investmentTransfers)
@@ -287,34 +289,37 @@ export async function syncInvestmentAdvanceApplication(input: {
     input.amountCents,
     advance.outstandingBeforeCents,
   );
-  if (amountCents === 0) {
-    await db
-      .delete(schema.investmentAdvanceApplications)
-      .where(
-        and(
-          eq(schema.investmentAdvanceApplications.userId, user.id),
-          eq(
-            schema.investmentAdvanceApplications.payPeriodStartDate,
-            input.payPeriodStartDate,
+  await db.transaction(async tx => {
+    await lockAllocationOwner(tx, user.id);
+    if (amountCents === 0) {
+      await tx
+        .delete(schema.investmentAdvanceApplications)
+        .where(
+          and(
+            eq(schema.investmentAdvanceApplications.userId, user.id),
+            eq(
+              schema.investmentAdvanceApplications.payPeriodStartDate,
+              input.payPeriodStartDate,
+            ),
           ),
-        ),
-      );
-  } else {
-    await db
-      .insert(schema.investmentAdvanceApplications)
-      .values({
-        userId: user.id,
-        payPeriodStartDate: input.payPeriodStartDate,
-        amountCents,
-      })
-      .onConflictDoUpdate({
-        target: [
-          schema.investmentAdvanceApplications.userId,
-          schema.investmentAdvanceApplications.payPeriodStartDate,
-        ],
-        set: { amountCents, updatedAt: new Date() },
-      });
-  }
+        );
+    } else {
+      await tx
+        .insert(schema.investmentAdvanceApplications)
+        .values({
+          userId: user.id,
+          payPeriodStartDate: input.payPeriodStartDate,
+          amountCents,
+        })
+        .onConflictDoUpdate({
+          target: [
+            schema.investmentAdvanceApplications.userId,
+            schema.investmentAdvanceApplications.payPeriodStartDate,
+          ],
+          set: { amountCents, updatedAt: new Date() },
+        });
+    }
+  });
   revalidatePath("/paycheck");
   return { ok: true };
 }

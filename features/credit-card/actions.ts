@@ -16,7 +16,8 @@ import { revalidatePath } from "next/cache";
 import { proratePerPaycheck, type Period } from "@/features/paycheck/lib/proration";
 import { computeUnplannedCashCents } from "@/features/paycheck/lib/cash-adjustments";
 import { db, schema } from "@/lib/db";
-import { loadFinancialConfiguration } from "@/features/financial-settings/server";
+import { lockAllocationOwner } from "@/features/allocations/server";
+import { loadFinancialConfiguration, financialConfigurationMatches } from "@/features/financial-settings/server";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { Money } from "@/lib/money";
 import { parseLocalIsoDate } from "@/lib/dates";
@@ -213,6 +214,8 @@ export async function syncCreditCardFunding(): Promise<SyncResult> {
       const amountCents = Math.min(availableCents, outstandingCents);
 
       const inserted = await db.transaction(async (tx) => {
+        await lockAllocationOwner(tx, userId);
+        if (!await financialConfigurationMatches(userId, configuration.versions, tx)) return false;
         const [event] = await tx
           .insert(schema.creditCardFundingEvents)
           .values({
@@ -461,6 +464,7 @@ export async function updatePriorityPlan(
   );
 
   await db.transaction(async (tx) => {
+    await lockAllocationOwner(tx, userId);
     const [cardEvents, goalTransfers] = editImpact.requiresFundingRefile
       ? await Promise.all([
           tx
@@ -620,6 +624,7 @@ export async function transferPiggyToCreditCard(
   const { commitmentId, amountCents } = parsed.data;
   try {
     await db.transaction(async (tx) => {
+      await lockAllocationOwner(tx, userId);
       const [[settings], [commitment]] = await Promise.all([
         tx
           .select({ piggyBankCents: schema.settings.piggyBankCents })

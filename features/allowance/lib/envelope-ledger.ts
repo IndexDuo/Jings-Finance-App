@@ -29,6 +29,9 @@ export interface SnapshotArgs {
   allocations?: readonly { periodStartDate: string; incomeTransactionId: string | null; releasedPlanId?: string | null; releasedBillId?: string | null; amountCents: number }[];
   piggyAvailableCents: number;
   asOfDate: string;
+  /** The first tracked partial paycheck receives one opening budget, not backfilled cycles. */
+  trackingStartDate?: string;
+  openingPeriodStartDate?: string;
   paydays?: readonly string[];
   configurationDates?: readonly string[];
   envelopeConfiguration?: (date: string, envelopeId: string) => { active: boolean; overflowEnvelopeId: string | null };
@@ -120,6 +123,8 @@ export function replayEnvelopeLedger(args: SnapshotArgs): FinancialSnapshot {
   let currentPeriod: string | null = null;
 
   for (const date of [...dates].filter(d => d >= start && d <= args.asOfDate).sort()) {
+    const opening = date === args.trackingStartDate && Boolean(args.openingPeriodStartDate) && !payDates.has(date);
+    if (opening) currentPeriod = args.openingPeriodStartDate!;
     if (payDates.has(date)) {
       // Close every source before depositing the new paycheck. Unassigned
       // positive balances leave reset envelopes, even when assigned much later.
@@ -151,7 +156,7 @@ export function replayEnvelopeLedger(args: SnapshotArgs): FinancialSnapshot {
       const policy = policyAt(policies, date);
       const active = date >= envelope.accrualStartDate &&
         (args.envelopeConfiguration ? args.envelopeConfiguration(date, envelope.id).active : (!envelope.archivedAt || date < iso(envelope.archivedAt)));
-      if (payDates.has(date)) state.cyclePolicy = active ? policy : undefined;
+      if (payDates.has(date) || opening) state.cyclePolicy = active ? policy : undefined;
       if (active && policy) {
         const oneTimeStart = policy.effectiveDate > envelope.accrualStartDate
           ? policy.effectiveDate : envelope.accrualStartDate;
@@ -161,7 +166,7 @@ export function replayEnvelopeLedger(args: SnapshotArgs): FinancialSnapshot {
         const weekly = isWeeklyAccumulating(policy);
         const recurringDate = weekly
           ? differenceInCalendarDays(parseLocalIsoDate(date), parseLocalIsoDate(envelope.accrualStartDate)) % 7 === 0
-          : payDates.has(date);
+          : payDates.has(date) || opening;
         const grant = policy.recurrence === "recurring" && recurringDate
           ? weekly ? policy.periodAmountCents : proratePerPaycheck(policy.periodAmountCents, policy.period, args.scheduleForDate?.(date) ?? args.paySchedule ?? DEFAULT_PAY_SCHEDULE)
           : policy.recurrence === "one-time" && date === oneTimeStart
@@ -173,7 +178,7 @@ export function replayEnvelopeLedger(args: SnapshotArgs): FinancialSnapshot {
           state.lastAccrualDate = date;
           state.lastAccrualAmountCents = grant;
         }
-        if (policy.recurrence === "recurring" && payDates.has(date)) {
+        if (policy.recurrence === "recurring" && (payDates.has(date) || opening)) {
           state.recurringGrant = proratePerPaycheck(policy.periodAmountCents, policy.period, args.scheduleForDate?.(date) ?? args.paySchedule ?? DEFAULT_PAY_SCHEDULE);
         }
       }
