@@ -10,21 +10,25 @@ A self-hostable personal finance app for planning paychecks, recording bills and
 | --- | --- |
 | Log | Record daily purchases, income, bill payments, and notes. |
 | Paycheck | See funding priorities, discretionary money, pending allocations, investment suggestions, and history. |
-| Plans | Set saving targets and review saving, payoff, and recovery progress. |
 | Projects | Organize purchases under a Plan and release proven unused savings when finished. |
+| Plans | Set saving targets and review saving, payoff, and recovery progress. |
 | Settings | Manage pay, bills, envelopes, timezone, and account access. |
 
 Supported schedules are weekly, biweekly, semimonthly, and monthly. Dates follow the saved IANA timezone. The interface is English and amounts are USD.
 
 ## Preview
 
-All records and amounts in these screenshots are fictional. They were captured from the running app with a separate local account.
+All records and amounts in these screenshots are fictional. They were captured from the running app with a separate local account at different stages of the walkthrough. The main screens follow the app’s bottom navigation order.
 
-<img src="screenshots/03-paycheck-start.png" width="240" alt="A fictional paycheck breakdown with sixty dollars of guilt-free money available">
-<img src="screenshots/05-plans.png" width="240" alt="Fictional saving Plans for a weekend trip, home workspace, and bike upgrade">
-<img src="screenshots/06-project-funded.png" width="240" alt="A home workspace Project with funded keyboard and desk lamp purchases">
-<img src="screenshots/16-paycheck-breakdown.png" width="240" alt="Expanded paycheck breakdown after advancing through later paydays">
-<img src="screenshots/17-paycheck-history.png" width="240" alt="Populated paycheck history with two past periods of fictional activity">
+| Log | Paycheck | Projects | Plans |
+| --- | --- | --- | --- |
+| <img src="screenshots/04-daily-log.png" width="200" alt="Daily Log with fictional Costco and Starbucks spending"> | <img src="screenshots/11-paycheck-recorded.png" width="200" alt="Paycheck with discretionary money, investment recording, and funding priorities"> | <img src="screenshots/06-project-funded.png" width="200" alt="Home workspace Project with keyboard and desk lamp purchases grouped as Equipment"> | <img src="screenshots/14-plans-after-release.png" width="200" alt="Purple airplane Weekend trip Plan and orange bicycle Bike upgrade Plan"> |
+
+Paycheck details and history after advancing through later paydays:
+
+| Full paycheck breakdown | Paycheck history |
+| --- | --- |
+| <img src="screenshots/16-paycheck-breakdown.png" width="240" alt="Full expanded paycheck breakdown with bills, envelopes, saving, and the investment remainder"> | <img src="screenshots/17-paycheck-history.png" width="240" alt="Populated History card with two past paychecks of fictional activity"> |
 
 Follow the [fictional demo walkthrough](DEMO.md), or read the [user guide](USER_GUIDE.md).
 
