@@ -380,6 +380,7 @@ export async function addTransaction(input: unknown): Promise<MutateResult> {
     }
 
     revalidatePath("/log");
+    revalidatePath("/settings");
     revalidatePath("/paycheck");
     revalidatePath("/goals");
   revalidatePath("/projects", "layout");
@@ -543,6 +544,7 @@ export async function updateTransaction(input: unknown): Promise<MutateResult> {
     }
 
     revalidatePath("/log");
+    revalidatePath("/settings");
     revalidatePath("/paycheck");
     revalidatePath("/goals");
   revalidatePath("/projects", "layout");
@@ -651,6 +653,7 @@ export async function deleteTransaction(input: unknown): Promise<MutateResult> {
         return { ok: false, error: actionError(error, "Could not delete transaction") };
     }
     revalidatePath("/log");
+    revalidatePath("/settings");
     revalidatePath("/paycheck");
     revalidatePath("/goals");
   revalidatePath("/projects", "layout");

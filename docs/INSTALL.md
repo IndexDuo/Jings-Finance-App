@@ -10,7 +10,7 @@ This is a USD, English-language personal finance application. It uses Node 24, N
 6. Start with `npm run dev`, open `/signup`, confirm the email, sign in, and complete onboarding. Onboarding asks for pay, schedule, timezone, optional bills, and optional spending envelopes. Accounts start with empty financial records.
 7. For production, run `npm run build` then `npm start`, or configure the same three environment variables on Vercel and deploy the Next.js application. Configure the production Auth Site URL and redirect allowlist before inviting users. No cron or stock API key is needed.
 
-Bills and envelopes are optional during onboarding. Adding them later defaults to updating the current paycheck while it is unused; Settings also offers Next paycheck. Recorded financial activity protects the current budget. Pay amount and schedule edits remain deferred. See `docs/ACCOUNTING.md` for the opening-paycheck and funding rules.
+Bills and envelopes are optional during onboarding. Adding them later defaults to updating the current paycheck while it is unused; Settings also offers Next paycheck. Remaining financial activity protects the current budget. Deleting a mistaken ordinary Log entry restores immediate editing when no other spending, payments, or funding remains. Pay amount and schedule edits remain deferred. See `docs/ACCOUNTING.md` for the opening-paycheck and funding rules.
 
 ### Supabase certificate trust
 

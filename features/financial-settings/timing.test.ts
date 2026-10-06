@@ -23,6 +23,8 @@ import { currentBudgetEligibility, paycheckHasActivity } from "./timing";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { loadCurrentPaycheckSummary } from "@/features/paycheck/server";
 import { recordInvestmentTransfer } from "@/features/investments/actions";
+import { deleteTransaction } from "@/features/log/actions";
+import { eq } from "drizzle-orm";
 
 const blank: OnboardingInput = { takeHomeCents: 150000, payAnchorDate: "2031-03-14", payFrequency: "biweekly",
   semimonthlyDays: [12, 26], timezone: "UTC", fixedExpenses: [], envelopes: [] };
@@ -184,16 +186,52 @@ describe("revising an unused paycheck", () => {
 });
 
 describe("recorded money protects the current paycheck", () => {
-  it("rejects a stale apply-now save after spending, even if that entry is deleted or backdated", async () => {
+  it("rejects a stale apply-now save while spending remains, even if it is backdated", async () => {
     await completeOnboarding(blank);
     const before = await db.select().from(schema.financialSettingsRevisions);
     const [transaction] = await db.insert(schema.transactions).values({ userId: state.user, date: state.today, category: "variable", amountCents: -100 }).returning();
-    await state.pg.exec(`DELETE FROM transactions WHERE id='${transaction.id}'`);
+    await db.update(schema.transactions).set({ date: "2031-03-01" }).where(eq(schema.transactions.id, transaction.id));
     expect(await paycheckHasActivity(state.user, "2031-03-14", "UTC")).toBe(true);
     expect(await completeOnboarding({ ...blank, fixedExpenses: [bill] }, "current")).toMatchObject({ ok: false, error: expect.stringContaining("recorded activity") });
     expect(await db.select().from(schema.financialSettingsRevisions)).toEqual(before);
     expect(await db.select().from(schema.fixedExpenses)).toHaveLength(0);
     expect(await completeOnboarding({ ...blank, fixedExpenses: [bill] }, "next")).toEqual({ ok: true });
+  });
+
+  it.each(["variable", "fixed", "guilt-free", "income"] as const)("reopens an unused paycheck after deleting the only mistaken %s entry, retaining the audit", async category => {
+    await completeOnboarding(blank);
+    const [transaction] = await db.insert(schema.transactions).values({ userId: state.user, date: state.today,
+      category, amountCents: category === "income" ? 1000 : -1000 }).returning();
+    expect(await paycheckHasActivity(state.user, "2031-03-14", "UTC")).toBe(true);
+    expect(await deleteTransaction({ id: transaction.id })).toEqual({ ok: true });
+    expect(await paycheckHasActivity(state.user, "2031-03-14", "UTC")).toBe(false);
+    expect(await completeOnboarding({ ...blank, fixedExpenses: [bill], envelopes: [envelope] }, "current")).toEqual({ ok: true });
+    const summary = await loadCurrentPaycheckSummary(state.user, state.today);
+    expect(summary.financialSnapshot.envelopeBalances[0].availableCents).toBe(12000);
+    expect(summary.waterfall.investmentPoolCents).toBe(126000);
+    const history = await db.select().from(schema.financialRecordHistory)
+      .where(eq(schema.financialRecordHistory.recordId, transaction.id));
+    expect(history.map(row => row.operation)).toEqual(["INSERT", "DELETE"]);
+    expect(history[0].afterRecord).toMatchObject({ amount_cents: transaction.amountCents });
+  });
+
+  it("stays protected when another expense remains after a mistaken entry is deleted", async () => {
+    await completeOnboarding(blank);
+    const [mistake] = await db.insert(schema.transactions).values([
+      { userId: state.user, date: state.today, category: "variable", amountCents: -100 },
+      { userId: state.user, date: state.today, category: "variable", amountCents: -200 },
+    ]).returning();
+    expect(await deleteTransaction({ id: mistake.id })).toEqual({ ok: true });
+    expect(await completeOnboarding({ ...blank, envelopes: [envelope] }, "current")).toMatchObject({ ok: false });
+  });
+
+  it("stays protected after deleting an expense that has separate funding history", async () => {
+    await completeOnboarding(blank);
+    const [transaction] = await db.insert(schema.transactions).values({ userId: state.user, date: state.today,
+      category: "variable", amountCents: -100 }).returning();
+    await db.insert(schema.investmentAdvanceApplications).values({ userId: state.user, payPeriodStartDate: "2031-03-14", amountCents: 500 });
+    expect(await deleteTransaction({ id: transaction.id })).toEqual({ ok: true });
+    expect(await completeOnboarding({ ...blank, envelopes: [envelope] }, "current")).toMatchObject({ ok: false });
   });
 
   it("protects actual investments and their original suggested amounts", async () => {

@@ -10,7 +10,9 @@ export function samePaySettings(a: Pick<Settings, "takeHomeCents" | "payAnchorDa
     a.timezone === b.timezone && scheduleKey(a) === scheduleKey(b);
 }
 
-/** Audit facts also protect a paycheck after an entry was edited or deleted.
+/** Audit facts protect money movements even after they were edited or deleted.
+ * A deleted Log entry alone is an undone mistake, not a money commitment.
+ * Its separate payment/funding/assignment history still protects the paycheck.
  * Configuration edits and a bill's initial enrollment are not money movements.
  * Inspect both images so backdating a fact cannot unlock its original paycheck. */
 export async function paycheckHasActivity(userId: string, periodStart: string, timezone: string,
@@ -25,6 +27,11 @@ export async function paycheckHasActivity(userId: string, periodStart: string, t
       select 1 from (values (${history.beforeRecord}), (${history.afterRecord})) as images(record)
       where case ${history.tableName}
         when 'transactions' then record->>'category' <> 'note' and record->>'date' >= ${periodStart}
+          and exists (
+            select 1 from ${schema.transactions} as live_transaction
+            where live_transaction.id = ${history.recordId}::uuid
+              and live_transaction.user_id = ${history.userId}
+          )
         when 'fixed_expense_payments' then record->>'paid_date' >= ${periodStart}
         when 'fixed_expense_payment_events' then record->>'paid_date' >= ${periodStart}
         when 'paycheck_allocations' then greatest(record->>'assigned_pay_date', record->>'period_start_date') >= ${periodStart}

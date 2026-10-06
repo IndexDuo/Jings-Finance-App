@@ -105,5 +105,24 @@ test("skipped onboarding budgets apply now, Settings feedback resets, and a stal
   await expect(page.getByText("Fictional subscription", { exact: true })).toHaveCount(0);
   await expect(page.getByText("$1,260.00", { exact: true }).first()).toBeVisible();
   expect(await readE2eRows(sql => sql`select amount_cents from transactions where user_id=${owner} and envelope_id is not null`)).toMatchObject([{ amount_cents: -1000 }]);
+
+  // Undoing the only ordinary expense reopens setup, while its audit survives.
+  await page.goto("/log");
+  await page.getByLabel("Delete", { exact: true }).click();
+  await expect(page.getByText("Nothing logged", { exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: /^Bills/ }).click();
+  await expect(page.getByLabel("Apply budget changes")).toHaveValue("current");
+  await expect(page.getByLabel("Apply budget changes").locator("option[value=current]")).not.toHaveAttribute("disabled", "");
+  await expect(page.getByText(/This paycheck is unused/)).toBeVisible();
+  await page.getByLabel("Edit Fictional subscription", { exact: true }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Save changes", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.goto("/paycheck");
+  await page.getByRole("button", { name: "More details", exact: true }).click();
+  await expect(page.getByText("Fictional subscription", { exact: true })).toBeVisible();
+  await expect(page.getByText("$1,140.00", { exact: true }).first()).toBeVisible();
+  expect(await readE2eRows(sql => sql`select id from transactions where user_id=${owner}`)).toHaveLength(0);
+  expect(await readE2eRows(sql => sql`select id from financial_record_history where user_id=${owner} and table_name='transactions' and operation='DELETE'`)).toHaveLength(1);
   expect(errors).toEqual([]);
 });
