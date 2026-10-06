@@ -29,7 +29,7 @@ import {
 import Link from "next/link";
 import { skippedBillsOnDate } from "@/features/log/lib/skipped-bills";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { AnimatedMoney } from "@/components/ui/animated-money";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -196,6 +196,7 @@ export function LogClient({
     const [sheetOpen, setSheetOpen] = useState(false);
     const [editingTx, setEditingTx] = useState<LogTransaction | null>(null);
     const [showCalendar, setShowCalendar] = useState(false);
+    const previousTodayIso = useRef(todayIso);
 
     useEffect(() => {
         const id = window.setTimeout(() => {
@@ -204,13 +205,11 @@ export function LogClient({
             const m = String(now.getMonth() + 1).padStart(2, "0");
             const d = String(now.getDate()).padStart(2, "0");
             const clientIso = `${y}-${m}-${d}`;
-            if (clientIso !== todayIso) {
-                const clientToday = parseLocalIso(clientIso);
-                setToday(clientToday);
-                setSelectedDate((prev) =>
-                    format(prev, "yyyy-MM-dd") === todayIso ? clientToday : prev,
-                );
-            }
+            const clientToday = parseLocalIso(clientIso);
+            const previousDay = previousTodayIso.current;
+            setToday(prev => format(prev, "yyyy-MM-dd") === clientIso ? prev : clientToday);
+            setSelectedDate(prev => format(prev, "yyyy-MM-dd") === previousDay ? clientToday : prev);
+            previousTodayIso.current = clientIso;
         }, 0);
         return () => window.clearTimeout(id);
     }, [timezone, todayIso]);

@@ -153,6 +153,7 @@ test("new account confirms email, onboards, funds projects, releases money, rese
     receipts:await sql`select released_cents from plan_completions where user_id=${userId}`,
     allocations:await sql`select target_kind,amount_cents from paycheck_allocations where user_id=${userId}`,
     investments:await sql`select actual_cents from investment_transfers where user_id=${userId}`,
+    settings:await sql`select take_home_cents from settings where user_id=${userId}`,
   }));
   expect(records.transactions.find(row=>row.note==="Fictional covered purchase")?.plan_funding_cents).toBe(5000);
   expect(records.transactions.find(row=>row.note==="Fictional future purchase")?.plan_funding_cents).toBe(0);
@@ -160,6 +161,10 @@ test("new account confirms email, onboards, funds projects, releases money, rese
   expect(records.receipts[0].released_cents).toBeGreaterThan(0);
   expect(records.allocations.map(row=>row.target_kind)).toEqual(expect.arrayContaining(["piggy","investment"]));
   expect(records.investments).toEqual([{actual_cents:2500}]);
+  expect(records.settings).toEqual([{take_home_cents:130000}]);
+  await page.goto("/paycheck");
+  await expect(page.getByText("$1,300.00 take-home", {exact:true})).toBeVisible();
+  await page.goto("/settings");
   const exported = await page.request.get("/api/export/transactions");
   expect(exported.status()).toBe(200);
   expect(await exported.text()).toContain("Fictional covered purchase");

@@ -178,10 +178,12 @@ export function GoalsClient({
   goals,
   priorityPlans,
   piggyBankCents,
+  asOfDate,
 }: {
   goals: GoalRow[];
   priorityPlans: PriorityPlanRow[];
   piggyBankCents: number;
+  asOfDate: string;
 }) {
   const router = useRouter();
   const [editTarget, setEditTarget] = useState<GoalRow | null>(null);
@@ -212,7 +214,7 @@ export function GoalsClient({
       const result = await syncPaycheckFunding();
       if (result.ok && result.changedCents > 0) router.refresh();
     });
-  }, [router, startSync]);
+  }, [asOfDate, router, startSync]);
 
   return (
     <div className="min-h-svh bg-grouped-bg">

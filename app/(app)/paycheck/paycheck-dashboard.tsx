@@ -140,8 +140,10 @@ export interface HistoryData {
 }
 
 export interface PaycheckPageData {
-    /** Baseline take-home from settings — the regular biweekly paycheck. */
+    /** Current paycheck's baseline take-home. */
     takeHomeCents: number;
+    /** Take-home under the configuration effective on the next payday. */
+    nextTakeHomeCents: number;
     /** Baseline + extras logged in the current paycheck period. Drives the
      *  waterfall total so refunds/gifts/etc. flow into the investment pool. */
     currentTotalCents: number;
@@ -271,12 +273,13 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                 router.refresh();
             }
         });
-    }, [router, startSync]);
+    }, [data.currentDateIso, router, startSync]);
 
     const [paycheckInfoOpen, setPaycheckInfoOpen] = useState(false);
     const [guiltDetailsOpen, setGuiltDetailsOpen] = useState(false);
     const {
         takeHomeCents,
+        nextTakeHomeCents,
         currentTotalCents,
         extraIncomeCents = 0,
         assignedInvestmentCents = 0,
@@ -492,7 +495,7 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                 />
 
                 <PaydayCountdown
-                    takeHomeCents={takeHomeCents}
+                    takeHomeCents={nextTakeHomeCents}
                     nextPayDateIso={nextPayDateIso}
                     daysUntilNextPay={daysUntilNextPay}
                 />

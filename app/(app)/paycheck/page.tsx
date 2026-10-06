@@ -568,6 +568,7 @@ export default async function PaycheckPage() {
     const periodEndIso = format(periodEnd, "yyyy-MM-dd");
     const pageData: PaycheckPageData = {
         takeHomeCents: settings.takeHomeCents,
+        nextTakeHomeCents: availableAllocation.configuration.at(format(nextPay, "yyyy-MM-dd")).settings.takeHomeCents,
         currentTotalCents: effectiveTakeHomeCents,
         extraIncomeCents: currentPeriodExtras,
         assignedInvestmentCents,

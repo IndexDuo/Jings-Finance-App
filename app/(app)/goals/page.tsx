@@ -203,6 +203,7 @@ export default async function GoalsPage() {
       goals={goals}
       priorityPlans={priorityPlans}
       piggyBankCents={settings.piggyBankCents}
+      asOfDate={format(today, "yyyy-MM-dd")}
     />
   );
 }

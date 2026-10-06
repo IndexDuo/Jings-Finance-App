@@ -6,6 +6,9 @@ import { db, schema } from "@/lib/db";
 import { getVerifiedUser } from "@/lib/supabase/verified-user";
 import { BottomNav } from "@/components/ui/bottom-nav";
 import { PageTransition } from "@/components/ui/page-transition";
+import { CalendarRefresh } from "@/components/ui/calendar-refresh";
+import { todayInUserTz } from "@/lib/dates";
+import { format } from "date-fns";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +34,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <UserTimezoneProvider timezone={existing[0].timezone}>
+      <CalendarRefresh renderedDate={format(todayInUserTz(existing[0].timezone), "yyyy-MM-dd")} />
       <PageTransition>{children}</PageTransition>
       <BottomNav />
     </UserTimezoneProvider>

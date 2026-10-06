@@ -16,6 +16,8 @@ Pay amount and schedule changes become effective on the next eligible payday of 
 
 Pending changes replace pending versions. Earlier paydays and funding use their effective configuration; changing an anchor or frequency does not invent replacement past paydays. Timezone changes apply to the user's current “today” immediately. The browser detects an IANA timezone during first onboarding; UTC remains the fallback when detection is unavailable. Dates are stored as `YYYY-MM-DD` calendar dates, timestamps as instants. Server and client derive calendar boundaries from the saved timezone.
 
+Open app pages check for a new local calendar day once per minute and when the window regains focus or becomes visible. They refresh dated server data after a day change. An open dialog postpones that refresh so a draft keeps its text and original date. Log follows the new day when Today was selected, while a deliberately selected historical day stays selected. Paycheck and Plans rerun their idempotent funding synchronization when the rendered date changes, including an already-open page reaching payday.
+
 ## Funding priorities and envelopes
 
 The paycheck waterfall reserves fixed bills, envelope budgets, recovery/card commitments, and scheduled saving before showing money available to invest. A shortfall remains visible and does not become a negative investment suggestion. Extra income and released money require explicit allocation with source provenance.

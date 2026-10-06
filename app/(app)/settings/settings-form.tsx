@@ -32,6 +32,10 @@ export type SettingsFormInitial = OnboardingInput & {
   trackingStartDate: string;
 };
 
+function schedulePreferences({ payFrequency, semimonthlyDays, timezone }: SchedulePreferences): SchedulePreferences {
+  return { payFrequency, semimonthlyDays, timezone };
+}
+
 export function SettingsForm({
   initial,
   nextBoundary,
@@ -59,7 +63,7 @@ export function SettingsForm({
   const [takeHome, setTakeHome] = useState<number | null>(
     initial.takeHomeCents,
   );
-  const [preferences, setPreferences] = useState<SchedulePreferences>(initial);
+  const [preferences, setPreferences] = useState<SchedulePreferences>(() => schedulePreferences(initial));
   const [anchor, setAnchor] = useState(initial.payAnchorDate);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -160,7 +164,7 @@ export function SettingsForm({
                     onClick={() => {
                       setTakeHome(initial.takeHomeCents);
                       setAnchor(initial.payAnchorDate);
-                      setPreferences(initial);
+                      setPreferences(schedulePreferences(initial));
                       setError(null);
                       setSaved(false);
                       setPayOpen(true);
