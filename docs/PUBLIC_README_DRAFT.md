@@ -23,6 +23,8 @@ All records and amounts in these screenshots are fictional. They were captured f
 <img src="screenshots/03-paycheck-start.png" width="240" alt="A fictional paycheck breakdown with sixty dollars of guilt-free money available">
 <img src="screenshots/05-plans.png" width="240" alt="Fictional saving Plans for a weekend trip, home workspace, and bike upgrade">
 <img src="screenshots/06-project-funded.png" width="240" alt="A home workspace Project with funded keyboard and desk lamp purchases">
+<img src="screenshots/16-paycheck-breakdown.png" width="240" alt="Expanded paycheck breakdown after advancing through later paydays">
+<img src="screenshots/17-paycheck-history.png" width="240" alt="Populated paycheck history with two past periods of fictional activity">
 
 Follow the [fictional demo walkthrough](DEMO.md), or read the [user guide](USER_GUIDE.md).
 

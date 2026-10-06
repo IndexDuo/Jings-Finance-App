@@ -20,7 +20,7 @@ The opening paycheck is a planning allowance from when tracking starts. Setup do
 
 ## Record the day in Log
 
-Choose Today or a historical date, then use the plus button to add an entry. Select the category, enter the amount, choose its bill/envelope/Plan when applicable, and save. Review the formatted amount before saving.
+Choose Today or a historical date, then use the plus button to add an entry. Select the category, enter the amount, choose its bill/envelope/Plan when applicable, and save. Use the description for the merchant, such as Costco or Walmart; the selected envelope already supplies the spending category. Review the formatted amount before saving.
 
 For a recurring bill, select the saved bill and confirm its actual payment. A payment above the saved budget creates recovery for the excess. Confirming payments keeps the bill's next due date and reserve calculation tied to actual occurrences.
 
@@ -42,7 +42,11 @@ The Next paycheck card shows the upcoming date and the pay amount effective then
 
 Create a Plan with a target amount and date. Enter money already saved only when it is already set aside. Save from paychecks adds scheduled saving to paycheck planning; choose its starting paycheck. Review the saving pace shown on the Plan.
 
+Open Appearance in the Plan form to choose an icon and color so you can recognize each Plan at a glance. Fully funded Plans use a green progress accent.
+
 In Projects, choose Add project and select a Plan. Record purchases there to keep their spending together. Available Plan savings cover a purchase up to the funded amount. The purchase form shows any portion that will need future paychecks.
+
+Use Organize to create specific purchase groups, such as Parts or Equipment, then select the group when adding a purchase. You can also move existing purchases between groups.
 
 When the Project is done, choose Finish project and review its totals. Finishing closes spending and releases only proven unused savings. An uncovered balance continues to need future funding after completion.
 
