@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { APP_NAME } from "@/lib/app-info";
 
 type Mode = "login" | "signup" | "reset" | "update";
 const labels: Record<Mode, string> = { login: "Sign in", signup: "Create account", reset: "Reset password", update: "Set a new password" };
@@ -51,6 +52,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
   }
 
   return <main className="mx-auto mt-20 w-full max-w-sm px-6 pb-12">
+    <p className="mb-2 text-[15px] text-secondary-label">{APP_NAME}</p>
     <h1 className="mb-6 font-ios text-[28px] font-semibold">{labels[mode]}</h1>
     <form onSubmit={submit} className="space-y-4">
       <fieldset disabled={pending} className="space-y-4">

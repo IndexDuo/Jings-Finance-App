@@ -1,6 +1,6 @@
 # Installation
 
-This is a USD, English-language personal finance application. It uses Node 24, Next.js, Supabase email/password Auth, and PostgreSQL. The temporary in-app name is “Finance App.”
+Jing’s Finance App is a USD, English-language personal finance application. It uses Node 24, Next.js, Supabase email/password Auth, and PostgreSQL.
 
 1. Install dependencies with `npm ci` using Node 24.
 2. Create a **fresh Supabase project**. Enable email/password signup. Keep email confirmation enabled unless deliberately configuring a private installation.
@@ -44,4 +44,4 @@ The server connection is privileged because finance writes require atomic ledger
 
 ## Home-screen installation
 
-The manifest supports standalone display and provides locally rendered 192/512px icons plus an Apple touch icon. Serve over HTTPS for installation. Use the browser's Install/Add to Home Screen action. This app needs a network connection; it does not provide offline financial writes or a service worker. Product branding and final icons are a separate release decision.
+The manifest supports standalone display and provides locally rendered 192/512px icons plus an Apple touch icon. The installed short name is “Jing’s Finance.” Serve over HTTPS for installation. Use the browser's Install/Add to Home Screen action. This app needs a network connection; it does not provide offline financial writes or a service worker.

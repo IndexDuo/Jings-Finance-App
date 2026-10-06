@@ -1,17 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME } from "@/lib/app-info";
 import "./globals.css";
 
 // Use system fonts (SF Pro on Apple, Segoe on Windows) — matches the iOS design spec.
 // We drop Geist here because the app is intentionally native-feeling, not "startup" branded.
 
 export const metadata: Metadata = {
-  title: "Finance App",
-  description: "Personal finance tracker — paycheck waterfall, envelopes, and investments.",
+  title: APP_NAME,
+  description: APP_DESCRIPTION,
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Finance",
+    title: APP_SHORT_NAME,
   },
   icons: {
     apple: "/apple-icon",

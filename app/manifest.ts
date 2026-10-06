@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
+import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME } from "@/lib/app-info";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Finance App",
-    short_name: "Finance",
-    description: "Personal finance tracker — paycheck waterfall, envelopes, and investments.",
+    name: APP_NAME,
+    short_name: APP_SHORT_NAME,
+    description: APP_DESCRIPTION,
     start_url: "/log",
     display: "standalone",
     background_color: "#F2F2F7",
