@@ -1,0 +1,11 @@
+# Keep text diffs stable across Windows, WSL, and GitHub.
+* text=auto eol=lf
+
+# Binary assets should never be line-ending normalized.
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.pdf binary

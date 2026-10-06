@@ -147,3 +147,16 @@ vite.config.ts.timestamp-*
 
 # Turbo Repo
 .turbo
+
+# Public release: private configuration and generated artifacts
+.env*
+!.env.example
+!.env.e2e.example
+.pnpm-store/
+.supabase/
+supabase/.temp/
+playwright-report/
+test-results/
+.auth/
+.DS_Store
+Thumbs.db
