@@ -9,7 +9,7 @@ Updated October 7, 2026. The app is deployed for protected testing; it is not re
 - Verified 25 public app tables, RLS enabled on all 25, no visitor records, and no browser access to the private demo marker. Supabase's security advisor returned no issues.
 - Created the separate [jings-finance-demo Vercel project](https://vercel.com/jing-li-projects/jings-finance-demo), ID `prj_OkbnrP90Ufhn3vevUbUCGWRLKtcZ`, under `jing-li-projects`, with Node 24, Next.js, `npm ci`, and `npm run build`.
 - Saved `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, and `FINANCE_DEMO_MODE=true` for Production and Preview. No private credentials are recorded in this document.
-- The owner confirmed Anonymous Sign-Ins and new-user signups are enabled, Email is disabled, and manual identity linking is disabled and saved. These settings still need verification through the hosted visitor flow.
+- The owner reported Anonymous Sign-Ins and new-user signups enabled, Email disabled, and manual identity linking disabled. The hosted visitor test subsequently exposed a saved Auth configuration mismatch: new-user signups are disabled (see pending actions).
 - Saved the owner-provided demo `DATABASE_URL` as a Vercel Secret for Production and Preview with `sslmode=verify-full`. No connection password is recorded in this document.
 - Deployed the current local app source directly to Vercel. GitHub is not connected to this Vercel project yet. The owner has requested pushing all release changes to `initial-release`.
 - Initial deployment `dpl_GSdjGKTPSEMgqhGS26ytG7UBh4rF` reached READY. The demo entry page returned HTTP 200 through Vercel's authenticated fetch connection, with the correct app title and Start my demo button.
@@ -26,9 +26,10 @@ The earlier `jings-finance-dev` project is paused. Local app copies configured t
 
 ## Pending
 
-1. Run the complete hosted visitor flow. The cloud executor's network proxy denied direct access to the deployment hostname, so hosted browser testing is blocked in this session. The Vercel authenticated fetch connection can verify HTTP pages but does not drive interactive browser actions. The owner has been asked to test Start my demo.
-2. Configure Cloudflare Turnstile in Supabase and the app, then verify its check on the deployed hostname before public sharing.
-3. Set the Supabase Auth Site URL to the verified demo origin, test two independent visitor sessions and reset/persistence, then make the intended demo URL publicly accessible.
-4. Add the verified public demo URL to the README. Connect the existing Vercel project to `IndexDuo/Jings-Finance-App` and set its production branch to `initial-release` for future Git deployments. The connected project-creation helper cannot reconnect an existing unlinked project, so use the Vercel project's Git settings for that step.
+1. Enable the top **Allow new users to sign up** switch in Supabase Auth Providers and save. The owner's hosted Start my demo test failed; Supabase Auth logs conclusively returned HTTP 422, `signup_disabled`, "Signups not allowed for this instance". Keep Anonymous Sign-Ins enabled, Email disabled, and manual linking disabled. This global signup setting also governs anonymous visitor creation. The owner has been asked to correct it and retry.
+2. Run the complete hosted visitor flow. The cloud executor's network proxy denied direct access to the deployment hostname, so hosted browser testing is blocked in this session. The Vercel authenticated fetch connection can verify HTTP pages but does not drive interactive browser actions.
+3. Configure Cloudflare Turnstile in Supabase and the app, then verify its check on the deployed hostname before public sharing.
+4. Set the Supabase Auth Site URL to the verified demo origin, test two independent visitor sessions and reset/persistence, then make the intended demo URL publicly accessible.
+5. Add the verified public demo URL to the README. Connect the existing Vercel project to `IndexDuo/Jings-Finance-App` and set its production branch to `initial-release` for future Git deployments. The connected project-creation helper cannot reconnect an existing unlinked project, so use the Vercel project's Git settings for that step.
 
 See [the full hosting guide](DEMO_HOSTING.md) for details. Hosted browser testing has not run; the prior browser test results describe local fixtures only.
