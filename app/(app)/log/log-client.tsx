@@ -29,7 +29,7 @@ import {
 import Link from "next/link";
 import { skippedBillsOnDate } from "@/features/log/lib/skipped-bills";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 
 import { AnimatedMoney } from "@/components/ui/animated-money";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
@@ -106,6 +106,7 @@ export interface LogFixedExpense {
 }
 
 interface LogClientProps {
+    demoNotice?: ReactNode;
     datedConfiguration?: Record<string, { envelopes: LogEnvelopeOption[]; fixedExpenses: LogFixedExpense[]; payAnchorIso: string; periodStartIso: string; paySchedule?: PaySchedule }>;
     todayIso: string;
     envelopes: LogEnvelopeOption[];
@@ -177,6 +178,7 @@ function formatMoney(cents: number): string {
 }
 
 export function LogClient({
+    demoNotice,
     todayIso,
     envelopes: defaultEnvelopes,
     transactions,
@@ -532,6 +534,7 @@ export function LogClient({
                         }
                     />
                 )}
+                {demoNotice}
             </div>
 
             <button

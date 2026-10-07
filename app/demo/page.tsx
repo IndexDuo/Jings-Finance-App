@@ -18,7 +18,7 @@ export default async function DemoPage() {
     </p>
     <div className="mt-12">
       {user ? <div className="space-y-4">
-        <Link href="/paycheck" className="block rounded-2xl bg-system-blue px-5 py-4 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-system-blue">Continue demo</Link>
+        <Link href="/log" className="block rounded-2xl bg-system-blue px-5 py-4 font-semibold text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-system-blue">Continue demo</Link>
         <div className="text-[15px] text-[#52739A]"><ResetDemo /></div>
       </div> : <>
         <StartDemo siteKey={process.env.DEMO_TURNSTILE_SITE_KEY} />

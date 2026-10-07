@@ -180,6 +180,8 @@ Implemented the owner's approved simpler demo home and banner, with Start/Contin
 
 The simplified production deployment `dpl_DedkiSQPMsBy8g1nYD7YDuioniiH` reached READY. The canonical demo page and database readiness endpoint returned HTTP 200 through Vercel's fetch connection. At the owner's explicit request, Vercel Authentication now applies only to Preview deployments, leaving [the production demo](https://jings-finance-demo.vercel.app/demo) public without a Vercel login. The project setting was independently verified. Turnstile remains unconfigured; existing Supabase anonymous signup rate limits still apply.
 
+Follow-up: Start and Continue now open Log. After reviewing the initial full-width banner on mobile, the owner requested a centered notice beneath the Log cards only. It now moves down as spending is added and is absent from the shared app header. Two existing browser cases passed with added checks for Log entry/return, notice placement at 1280px and 320px, movement after adding spending, and absence on Paycheck. A local Webpack production build and affected-file lint passed; this executor blocked Turbopack's compiler socket. A mobile-sized Chromium screenshot was inspected. Hosted build status is recorded in the deployment notes. No financial logic or database configuration changed.
+
 ## Remaining publication decisions and limitations
 
 - **Personal information:** no known financial information/secrets in publication files. Original license attribution and repository provenance intentionally identify the owner. Review that attribution and the diff before publishing.

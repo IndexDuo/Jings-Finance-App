@@ -30,7 +30,7 @@ For localhost verification, you may leave CAPTCHA off in the disposable local Au
 
 ## 3. Try it locally
 
-Run `npm run dev`, then open `http://localhost:3000/demo` and choose **Start demo**.
+Run `npm run dev`, then open `http://localhost:3000/demo` and choose **Start demo** to open Log. **Continue demo** also returns to Log.
 
 The fictional account has $2,000 biweekly pay, rent and Internet bills, Groceries/Transport/Fun money envelopes, merchant-style spending descriptions, and two earlier paycheck periods. Plans use distinct icons and colors. Home workspace has $375 left after $125 of purchases; Bike upgrade has a Parts group and a $75 purchase needing future money. Weekend trip starts saving next payday.
 

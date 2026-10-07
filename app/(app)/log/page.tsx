@@ -12,6 +12,8 @@ import { getVerifiedUser } from "@/lib/supabase/verified-user";
 import { resolveFixedExpenseSchedule } from "@/features/fixed-expenses/lib/schedule";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { summarizeAllowance } from "@/features/allowance/lib/summary";
+import { isDemoMode } from "@/lib/demo/config";
+import { DemoBanner } from "@/features/demo/demo-banner";
 
 import {
     LogClient,
@@ -186,6 +188,7 @@ export default async function LogPage() {
 
     return (
         <LogClient
+            demoNotice={isDemoMode() ? <DemoBanner /> : null}
             datedConfiguration={datedConfiguration}
             todayIso={todayIso}
             envelopes={envelopeOptions}

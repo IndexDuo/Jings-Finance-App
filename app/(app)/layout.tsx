@@ -9,8 +9,6 @@ import { PageTransition } from "@/components/ui/page-transition";
 import { CalendarRefresh } from "@/components/ui/calendar-refresh";
 import { todayInUserTz } from "@/lib/dates";
 import { format } from "date-fns";
-import { isDemoMode } from "@/lib/demo/config";
-import { DemoBanner } from "@/features/demo/demo-banner";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +34,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <UserTimezoneProvider timezone={existing[0].timezone}>
-      {isDemoMode() && <DemoBanner />}
       <CalendarRefresh renderedDate={format(todayInUserTz(existing[0].timezone), "yyyy-MM-dd")} />
       <PageTransition>{children}</PageTransition>
       <BottomNav />

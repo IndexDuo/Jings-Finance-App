@@ -6,8 +6,8 @@ import { readDemoRows } from "./test-environment";
 async function start(page: Page) {
   await page.goto("/demo");
   await page.getByRole("button", { name: "Start demo", exact: true }).click();
-  await expect(page).toHaveURL(/\/paycheck$/);
-  await expect(page.getByRole("heading", { name: "Paycheck", exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/log$/);
+  await expect(page.getByRole("heading", { name: "Log", exact: true })).toBeVisible();
   const response = await page.request.get("/api/financial-history");
   expect(response.status()).toBe(200);
   const { entries } = await response.json();
@@ -21,6 +21,20 @@ test("each visitor owns a persistent copy and cannot read or write another visit
   page.on("pageerror", error => errors.push(error.message));
   const owner = await start(page);
   await expect(page.getByText("This is your own copy of the demo.", { exact: true })).toBeVisible();
+  const mobileViewport = page.viewportSize()!;
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const message = page.getByText("This is your own copy of the demo.", { exact: true });
+  const returnLink = page.getByRole("link", { name: "demo home", exact: true });
+  const notice = page.getByRole("complementary", { name: "Demo information" });
+  const desktopBox = (await notice.boundingBox())!;
+  expect(Math.abs(desktopBox.x + desktopBox.width / 2 - 640)).toBeLessThan(2);
+  expect((await message.boundingBox())!.y).toBeGreaterThan((await page.getByText("Spent", { exact: true }).boundingBox())!.y);
+  await page.setViewportSize({ width: 320, height: 700 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect((await returnLink.boundingBox())!.y).toBeGreaterThan((await message.boundingBox())!.y);
+  await page.setViewportSize(mobileViewport);
+  await page.goto("/paycheck");
+  await expect(notice).toHaveCount(0);
   await expect(page.getByText("History", { exact: true })).toBeVisible();
   await expect(page.getByText("Income", { exact: true })).toHaveCount(2);
   const baseline = await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [owner])).rows[0].count);
@@ -32,6 +46,7 @@ test("each visitor owns a persistent copy and cannot read or write another visit
 
   const description = `Walmart visitor ${randomUUID()}`;
   await page.goto("/log");
+  const noticeBeforePurchase = (await notice.boundingBox())!.y;
   await page.getByLabel("Add transaction").click();
   await page.getByRole("button", { name: "Variable", exact: true }).click();
   await page.getByLabel("Amount", { exact: true }).fill("1234");
@@ -42,10 +57,12 @@ test("each visitor owns a persistent copy and cannot read or write another visit
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await expect(page.getByText(description, { exact: true })).toBeVisible();
+  expect((await notice.boundingBox())!.y).toBeGreaterThan(noticeBeforePurchase);
   await page.reload();
   await expect(page.getByText(description, { exact: true })).toBeVisible();
   await page.goto("/demo");
   await page.getByRole("link", { name: "Continue demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/log$/);
   expect(await startOwner(page)).toBe(owner);
 
   const secondContext = await browser.newContext();

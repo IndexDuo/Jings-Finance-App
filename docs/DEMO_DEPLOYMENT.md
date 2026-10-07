@@ -32,6 +32,12 @@ The local production build, TypeScript, affected-file lint, and two existing bro
 
 Production deployment `dpl_DedkiSQPMsBy8g1nYD7YDuioniiH` reached READY with the simplified screens. The canonical `/demo` returned HTTP 200 with the new introduction, Start demo button, and help link; `/api/demo-health` returned HTTP 200 with `{"status":"ready"}`. These HTTP checks used Vercel's authenticated fetch connection. Independently verified the project's protection setting is `preview`, so production no longer requires Vercel sign-in while Preview deployments remain protected. No `DEMO_TURNSTILE_SITE_KEY` is configured; the demo currently uses Supabase's existing anonymous signup rate limits. The optional CAPTCHA instructions remain outstanding.
 
+## Log entry and centered notice follow-up
+
+Start demo and Continue demo now open Log. At the owner's follow-up request, the demo notice appears only on Log, centered below its cards in normal page flow. Adding an expense pushes it down, and it no longer adds height above the sticky Log header. Two local production browser cases passed, including Start/Continue/reset, visitor isolation, centered notice placement at 1280px, no overflow at 320px, absence on Paycheck, and movement below added spending. A local production build using Webpack and affected-file lint passed; local Turbopack compilation was blocked by a compiler socket restriction in this executor. A mobile-sized Chromium screenshot was also inspected.
+
+Production deployment `dpl_ANkvpqYNGB1ShBzUoTKrxjqsgwyr` reached READY with Log entry and an initial full-width banner. The subsequent deployment `dpl_xBhnbQAkBgpxPGwV9zk6YREWWPyp` reached READY with the centered Log-only notice using the normal Turbopack build on Vercel. The canonical demo page and readiness endpoint returned HTTP 200 through Vercel's fetch connection; readiness reported `{"status":"ready"}`. Hosted interactive browser verification remains subject to the network limitation below.
+
 ## Pending
 
 1. Finish the hosted visitor checks: edit/reload persistence, a separate visitor copy, and reset. The cloud executor's network proxy denied direct access to the deployment hostname, so automated hosted browser testing is blocked in this session. The Vercel authenticated fetch connection can verify HTTP pages but does not drive interactive browser actions. The owner has verified the first Start my demo flow in their browser.

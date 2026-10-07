@@ -41,7 +41,7 @@ export function StartDemo({ siteKey }: { siteKey?: string }) {
       onClick={() => transition(async () => {
         setError(null);
         const result = await startDemo({ captchaToken: token });
-        if (result.ok) { router.push("/paycheck"); router.refresh(); }
+        if (result.ok) { router.push("/log"); router.refresh(); }
         else {
           setError(result.error);
           setToken(undefined);
