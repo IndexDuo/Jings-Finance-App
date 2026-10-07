@@ -1,6 +1,27 @@
-# Jing’s Finance App
+<p align="center">
+  <a href="https://jings-finance-demo.vercel.app/demo">
+    <img src="docs/screenshots/04-daily-log.png" width="23%" alt="Log with made-up Costco and Starbucks purchases">
+    <img src="docs/screenshots/11-paycheck-recorded.png" width="23%" alt="Paycheck showing where the money goes and what is left to invest">
+    <img src="docs/screenshots/06-project-funded.png" width="23%" alt="Projects with workspace purchases grouped as Equipment">
+    <img src="docs/screenshots/14-plans-after-release.png" width="23%" alt="Plans for a weekend trip and a bike upgrade">
+  </a>
+</p>
 
-Enjoy your life now, plan for your future, and know where each paycheck is going.
+<h1 align="center">Jing’s Finance App</h1>
+
+<p align="center">
+  Enjoy your life now, plan for your future, and know where each paycheck is going.
+</p>
+
+<p align="center">
+  <a href="https://jings-finance-demo.vercel.app/demo"><strong>Try the demo</strong></a>
+  · <a href="docs/USER_GUIDE.md">User guide</a>
+  · <a href="docs/INSTALL.md">Install your own copy</a>
+</p>
+
+<p align="center">
+  The demo uses made-up money. Each visitor gets their own copy. Best used on a phone.
+</p>
 
 Jing’s Finance App helps you reserve money for bills, track everyday spending, save for purchases, recover unexpected expenses, and see what remains available to invest. It is a self-hostable personal finance app with manual entry.
 
@@ -72,19 +93,15 @@ Supported schedules are weekly, biweekly, semimonthly, and monthly. Dates follow
 
 ## Preview
 
-All records and amounts in these screenshots are fictional. They were captured from the running app with a separate local account at different stages of the walkthrough. The main screens follow the app’s bottom navigation order.
+The screenshots at the top show Log, Paycheck, Projects, and Plans in the same order as the app. All screenshots use made-up money from the [walkthrough](docs/DEMO.md).
 
-| Log | Paycheck | Projects | Plans |
-| --- | --- | --- | --- |
-| <img src="docs/screenshots/04-daily-log.png" width="200" alt="Daily Log with fictional Costco and Starbucks spending"> | <img src="docs/screenshots/11-paycheck-recorded.png" width="200" alt="Paycheck with discretionary money, investment recording, and funding priorities"> | <img src="docs/screenshots/06-project-funded.png" width="200" alt="Home workspace Project with keyboard and desk lamp purchases grouped as Equipment"> | <img src="docs/screenshots/14-plans-after-release.png" width="200" alt="Purple airplane Weekend trip Plan and orange bicycle Bike upgrade Plan"> |
-
-Paycheck details and history after advancing through later paydays:
+Here is the full paycheck breakdown and history after a few more paydays:
 
 | Full paycheck breakdown | Paycheck history |
 | --- | --- |
 | <img src="docs/screenshots/16-paycheck-breakdown.png" width="240" alt="Full expanded paycheck breakdown with bills, envelopes, saving, and the investment remainder"> | <img src="docs/screenshots/17-paycheck-history.png" width="240" alt="Populated History card with two past paychecks of fictional activity"> |
 
-Try the [interactive demo](https://jings-finance-demo.vercel.app/demo), where each visitor starts with their own made-up records, or explore the [fictional walkthrough with screenshots](docs/DEMO.md). Use fictional information in the demo. Read the [user guide](docs/USER_GUIDE.md) for everyday use, or follow [demo hosting](docs/DEMO_HOSTING.md) to host a demo yourself.
+See the [walkthrough with screenshots](docs/DEMO.md) for more examples. If you want to host a public demo yourself, follow [demo hosting](docs/DEMO_HOSTING.md).
 
 ## What this app doesn’t do
 
