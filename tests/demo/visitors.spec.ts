@@ -1,0 +1,159 @@
+import { expect, test, type Page, type Request } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { createServerClient } from "@supabase/ssr";
+import { readDemoRows } from "./test-environment";
+
+async function start(page: Page) {
+  await page.goto("/demo");
+  await page.getByRole("button", { name: "Start my demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/paycheck$/);
+  await expect(page.getByRole("heading", { name: "Paycheck", exact: true })).toBeVisible();
+  const response = await page.request.get("/api/financial-history");
+  expect(response.status()).toBe(200);
+  const { entries } = await response.json();
+  const owners = [...new Set(entries.map((entry: { userId: string }) => entry.userId))];
+  expect(owners).toHaveLength(1);
+  return owners[0] as string;
+}
+
+test("each visitor owns a persistent copy and cannot read or write another visitor's records", async ({ browser, page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", error => errors.push(error.message));
+  const owner = await start(page);
+  await expect(page.getByText("Fictional demo · Your own copy", { exact: true })).toBeVisible();
+  await expect(page.getByText("History", { exact: true })).toBeVisible();
+  await expect(page.getByText("Income", { exact: true })).toHaveCount(2);
+  const baseline = await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [owner])).rows[0].count);
+  expect(baseline).toBe(12);
+  const copy = await page.context().newPage();
+  await Promise.all([page.reload(), copy.goto("/paycheck")]);
+  expect(await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [owner])).rows[0].count)).toBe(baseline);
+  await copy.close();
+
+  const description = `Walmart visitor ${randomUUID()}`;
+  await page.goto("/log");
+  await page.getByLabel("Add transaction").click();
+  await page.getByRole("button", { name: "Variable", exact: true }).click();
+  await page.getByLabel("Amount", { exact: true }).fill("1234");
+  await page.getByRole("radio", { name: "Groceries", exact: true }).click();
+  await page.getByLabel("Description", { exact: true }).fill(description);
+  let mutation: Request | undefined;
+  page.on("request", request => { if (request.method() === "POST" && request.headers()["next-action"]) mutation = request; });
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByText(description, { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(description, { exact: true })).toBeVisible();
+  await page.goto("/demo");
+  await page.getByRole("link", { name: "Continue my demo", exact: true }).click();
+  expect(await startOwner(page)).toBe(owner);
+
+  const secondContext = await browser.newContext();
+  const second = await secondContext.newPage();
+  const other = await start(second);
+  expect(other).not.toBe(owner);
+  const mine = await readDemoRows(async c => (await c.query("SELECT id,amount_cents FROM transactions WHERE user_id=$1 AND note=$2", [owner, description])).rows[0]);
+  expect(mine.amount_cents).toBe(-1234);
+  const foreignHistory = await second.request.get(`/api/financial-history?recordId=${mine.id}&userId=${owner}`);
+  expect((await foreignHistory.json()).entries).toHaveLength(0);
+  const exportResponse = await second.request.get("/api/export/transactions");
+  expect(await exportResponse.text()).not.toContain(description);
+  expect(mutation).toBeDefined();
+  const headers = mutation!.headers();
+  const replay = await second.request.post(new URL(mutation!.url()).pathname, { headers: {
+    "next-action": headers["next-action"], "content-type": headers["content-type"], origin: "http://127.0.0.1:3102",
+  }, data: mutation!.postData()! });
+  expect(replay.status()).toBe(200);
+  expect(await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [other])).rows[0].count)).toBe(baseline);
+  const project = await readDemoRows(async c => (await c.query("SELECT id FROM goals WHERE user_id=$1 AND name='Home workspace'", [owner])).rows[0].id);
+  expect((await second.goto(`/projects/${project}`))?.status()).toBe(404);
+  const scoped = await readDemoRows(async c => {
+    await c.query("SET LOCAL ROLE authenticated");
+    await c.query("SELECT set_config('request.jwt.claim.sub',$1,true)", [other]);
+    return (await c.query("SELECT user_id FROM transactions")).rows;
+  });
+  expect(scoped).toHaveLength(baseline);
+  expect(scoped.every(r => r.user_id === other)).toBe(true);
+  expect(errors).toEqual([]);
+  await secondContext.close();
+});
+
+async function startOwner(page: Page) {
+  const response = await page.request.get("/api/financial-history");
+  return (await response.json()).entries[0].userId as string;
+}
+
+test("workspace completion preserves its $375 release and the starter journals reconcile", async ({ page }) => {
+  const owner = await start(page);
+  const report = await (await page.request.get("/api/reconciliation")).json();
+  expect(report.mismatchCount).toBe(0);
+  expect(report.issues).toEqual([]);
+  const project = await readDemoRows(async c => (await c.query("SELECT id,current_cents FROM goals WHERE user_id=$1 AND name='Home workspace'", [owner])).rows[0]);
+  expect(project.current_cents).toBe(37500);
+  await page.goto(`/projects/${project.id}`);
+  await expect(page.getByText("Equipment", { exact: true })).toBeVisible();
+  await expect(page.getByText("Keyboard", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Finish project", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("$375.00");
+  await page.getByRole("button", { name: "Finish and release", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  const receipt = await readDemoRows(async c => (await c.query("SELECT released_cents,spent_cents FROM plan_completions WHERE user_id=$1 AND goal_id=$2", [owner, project.id])).rows);
+  expect(receipt).toEqual([{ released_cents: 37500, spent_cents: 12500 }]);
+  const after = await (await page.request.get("/api/reconciliation")).json();
+  expect(after.mismatchCount).toBe(0);
+  expect(after.issues).toEqual([]);
+});
+
+test("reset starts a fresh visitor without deleting the previous copy or showing personal account controls", async ({ page }) => {
+  const owner = await start(page);
+  await page.goto("/settings");
+  await expect(page.getByRole("link", { name: "Reset password", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: /^Bills/ }).click();
+  await expect(page.getByRole("button", { name: "Start fresh demo", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Start fresh demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/demo$/);
+  const other = await start(page);
+  expect(other).not.toBe(owner);
+  const owners = await readDemoRows(async c => (await c.query("SELECT user_id,count(*)::int AS count FROM transactions WHERE user_id=ANY($1::uuid[]) GROUP BY user_id", [[owner, other]])).rows);
+  expect(owners).toHaveLength(2);
+  expect(owners.every(r => r.count === 12)).toBe(true);
+  await page.goto("/signup");
+  await expect(page).toHaveURL(/\/demo$/);
+  await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
+});
+
+test("concurrent first visits seed an anonymous owner only once", async ({ context }) => {
+  // Use the same public Auth flow without bootstrapping financial data yet.
+  // The UI Start action normally seeds before returning its session cookies.
+  const jar = new Map<string, string>();
+  const auth = createServerClient(process.env.E2E_SUPABASE_URL!, process.env.E2E_SUPABASE_ANON_KEY!, {
+    cookies: { getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+      setAll: cookies => { for (const { name, value } of cookies) jar.set(name, value); } },
+  });
+  const { data, error } = await auth.auth.signInAnonymously();
+  expect(error).toBeNull();
+  const owner = data.user!.id;
+  expect(await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM settings WHERE user_id=$1", [owner])).rows[0].count)).toBe(0);
+  await context.addCookies([...jar].map(([name, value]) => ({ name, value, domain: "127.0.0.1", path: "/" })));
+  const first = await context.newPage();
+  const second = await context.newPage();
+  await Promise.all([first.goto("/paycheck"), second.goto("/paycheck")]);
+  await expect(first.getByRole("heading", { name: "Paycheck", exact: true })).toBeVisible();
+  await expect(second.getByRole("heading", { name: "Paycheck", exact: true })).toBeVisible();
+  expect(await startOwner(first)).toBe(owner);
+  expect(await startOwner(second)).toBe(owner);
+  const counts = await readDemoRows(async c => (await c.query(`SELECT
+    (SELECT count(*)::int FROM transactions WHERE user_id=$1) AS purchases,
+    (SELECT count(*)::int FROM goals WHERE user_id=$1) AS plans,
+    (SELECT count(*)::int FROM financial_settings_revisions WHERE user_id=$1) AS revisions`, [owner])).rows[0]);
+  expect(counts).toEqual({ purchases: 12, plans: 3, revisions: 1 });
+  const history = await (await first.request.get("/api/financial-history")).json();
+  expect(history.entries.filter((entry: { tableName: string }) => entry.tableName === "transactions")
+    .every((entry: { reason: string }) => entry.reason === "Fictional interactive demo starter data")).toBe(true);
+  const report = await (await first.request.get("/api/reconciliation")).json();
+  expect(report.mismatchCount).toBe(0);
+  expect(report.issues).toEqual([]);
+});

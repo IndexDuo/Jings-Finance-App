@@ -1,8 +1,8 @@
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { loadFinancialHistory } from "@/features/reconciliation/history";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = await getAppAuthUser();
   const headers = { "Cache-Control": "private, no-store" };
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401, headers });
   const params = new URL(request.url).searchParams;

@@ -20,7 +20,7 @@ import { loadFinancialConfiguration, financialConfigurationMatches } from "@/fea
 import { lockAllocationOwner } from "@/features/allocations/server";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { Money } from "@/lib/money";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { recommendStorage } from "@/features/goals/lib/horizon";
 import {
   plannedScheduledSavingCents,
@@ -110,8 +110,7 @@ export async function assignPlanPurchase(
 }
 
 async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   return user?.id ?? null;
 }
 

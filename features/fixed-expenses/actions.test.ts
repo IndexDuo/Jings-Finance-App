@@ -44,7 +44,7 @@ const input = {
 describe("free subscription month", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.getUser.mockResolvedValue({ data: { user: { id: "owner" } } });
+    mocks.getUser.mockResolvedValue({ data: { user: { id: "owner", email: "owner@example.test" } } });
     mocks.expense.mockResolvedValue([{ id: input.fixedExpenseId, name: "AI subscription", amountCents: 2_000 }]);
     mocks.link.mockResolvedValue({ expectedCents: 2_000 });
   });

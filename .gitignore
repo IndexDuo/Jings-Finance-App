@@ -152,6 +152,7 @@ vite.config.ts.timestamp-*
 .env*
 !.env.example
 !.env.e2e.example
+!.env.demo.e2e.example
 .pnpm-store/
 .supabase/
 supabase/.temp/

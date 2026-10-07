@@ -17,7 +17,9 @@
     "test:flows": "vitest run tests/flows",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:demo": "playwright test --config playwright.demo.config.ts",
     "db:setup": "tsx scripts/setup-database.ts",
+    "db:setup:demo": "tsx scripts/setup-database.ts --demo",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

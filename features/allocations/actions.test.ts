@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, afterAll, describe, expect, it, vi } from "vites
 import type { PGlite } from "@electric-sql/pglite";
 const state = vi.hoisted(() => ({ pg: null as unknown as PGlite, user: "10000000-0000-4000-8000-000000000001", today: "2031-03-28" }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: state.user } } }) } }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: state.user, email: `${state.user}@example.test` } } }) } }) }));
 vi.mock("@/lib/dates", async (original) => ({ ...await original<typeof import("@/lib/dates")>(), todayInUserTz: () => new Date(`${state.today}T12:00:00`) }));
 vi.mock("@/lib/db", async () => {
   const { PGlite } = await import("@electric-sql/pglite");

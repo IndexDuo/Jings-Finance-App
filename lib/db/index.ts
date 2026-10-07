@@ -5,6 +5,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 
 import * as schema from "./schema";
+import { databaseConnectionOptions } from "./connection-options";
 
 // Lazy — the client is created on first access, not at module load. This keeps
 // `next build` from failing when DATABASE_URL isn't set in the build environment
@@ -23,7 +24,7 @@ function getDb() {
   // Vercel keeps the instance alive until pg has closed its idle connection,
   // avoiding reuse of a stale socket after the instance resumes.
   const pool = new Pool({
-    connectionString,
+    ...databaseConnectionOptions(connectionString),
     max: 1,
     idleTimeoutMillis: 1_000,
     connectionTimeoutMillis: 10_000,

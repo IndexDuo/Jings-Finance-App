@@ -8,14 +8,14 @@ import { getUserToday } from "@/lib/user-timezone";
 import { z } from "zod";
 import { format } from "date-fns";
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 
 import { loadPlanCompletionPreview } from "./completion-server";
 import { completePlan, completionPreviewKey } from "./complete-plan";
 
 export async function previewPlanFinish(goalId: string) {
   if (!z.string().uuid().safeParse(goalId).success) return { ok: false as const, error: "Plan not found." };
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false as const, error: "Not signed in." };
   try {
     const preview = await loadPlanCompletionPreview(user.id, goalId);
@@ -28,7 +28,7 @@ export async function previewPlanFinish(goalId: string) {
 export async function finishPlan(input: unknown) {
   const parsed = z.object({ goalId: z.string().uuid(), key: z.string().regex(/^[a-f0-9]{64}$/) }).safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "Review the plan before finishing." };
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false as const, error: "Not signed in." };
   try {
     const receipt = await completePlan(user.id, parsed.data.goalId, parsed.data.key, format((await getUserToday(user.id)), "yyyy-MM-dd"));

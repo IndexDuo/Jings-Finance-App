@@ -8,7 +8,7 @@ import { currentBudgetEligibility, type BudgetTiming } from "@/features/financia
 import { PublicActionError, actionError } from "@/lib/action-error";
 
 import { db, schema } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { advanceFixedExpenseDueDate } from "@/features/fixed-expenses/lib/schedule";
 import { nextPayDate, previousPayDate, parseLocalIsoDate, todayInUserTz } from "@/lib/dates";
 
@@ -31,10 +31,7 @@ export async function completeOnboarding(
         };
     }
 
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAppAuthUser();
     if (!user) return { ok: false, error: "Not signed in" };
 
     const data = parsed.data;
@@ -46,7 +43,7 @@ export async function completeOnboarding(
     // but double-check — idempotent).
     await db
         .insert(schema.users)
-        .values({ id: userId, email: user.email ?? "" })
+        .values({ id: userId, email: user.email ?? `demo-${user.id}@example.invalid` })
         .onConflictDoNothing();
 
     // Settings is keyed by userId — upsert. Other tables are diff-updated by id

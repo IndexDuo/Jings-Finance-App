@@ -6,14 +6,14 @@ import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { format } from "date-fns";
 import { db, schema } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 
 import { addTransaction, updateTransaction } from "@/features/log/actions";
 
 export async function saveProjectPurchase(input: unknown) {
   const parsed = z.object({ requestId: z.string().uuid(), id: z.string().uuid().optional(), goalId: z.string().uuid(), amountCents: z.number().int().positive().max(2147483647), note: z.string().trim().min(1).max(200), groupId: z.string().uuid().nullable(), paymentMethod: z.enum(["cash", "credit"]) }).safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "Enter an amount and description." };
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false as const, error: "Not signed in" };
   const v = parsed.data;
   if (!v.id) return addTransaction({ requestId: v.requestId, date: format((await getUserToday(user.id)), "yyyy-MM-dd"), amountCents: -v.amountCents, note: v.note,

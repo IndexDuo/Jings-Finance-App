@@ -8,14 +8,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { calendarDateSchema } from "@/lib/date-schema";
 import { db, schema } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { updateGoal } from "@/features/goals/actions";
 import { lockAllocationOwner } from "@/features/allocations/server";
 
 export async function editProject(input: unknown) {
   const parsed = z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(64), targetCents: z.number().int().positive(), targetDate: calendarDateSchema }).safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "Check the name, budget and date." };
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false as const, error: "Not signed in" };
   const [plan] = await db.select().from(schema.goals).where(and(eq(schema.goals.id, parsed.data.id), eq(schema.goals.userId, user.id), isNull(schema.goals.archivedAt)));
   if (!plan) return { ok: false as const, error: "Active plan not found." };
@@ -34,7 +34,7 @@ const inputSchema = z.discriminatedUnion("kind", [
 export async function organizeProject(input: unknown) {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { ok: false as const, error: "Check the project and group details." };
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false as const, error: "Not signed in" };
   const data = parsed.data;
   try {

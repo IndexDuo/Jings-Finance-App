@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ user: null as null | { id: string }, report: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: null as null | { id: string; email: string }, report: vi.fn() }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: mocks.user } }) } }) }));
 vi.mock("@/features/reconciliation/server", () => ({ loadReconciliationReport: mocks.report }));
 vi.mock("@/lib/user-timezone", () => ({ getUserToday: () => new Date(2037, 8, 20, 12) }));
@@ -12,7 +12,7 @@ it("rejects unauthenticated access before loading financial records", async () =
   expect(response.headers.get("Cache-Control")).toBe("private, no-store");
 });
 it("uses only the authenticated owner and prevents caching the private report", async () => {
-  mocks.user = { id: "owner" };
+  mocks.user = { id: "owner", email: "owner@example.test" };
   mocks.report.mockResolvedValue({ mismatchCount: 1 });
   const response = await GET();
   expect(mocks.report).toHaveBeenCalledWith("owner", "2037-09-20");

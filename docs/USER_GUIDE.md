@@ -20,7 +20,7 @@ The opening paycheck is a planning allowance from when tracking starts. Setup do
 
 ## Record the day in Log
 
-Choose Today or a historical date, then use the plus button to add an entry. Select the category, enter the amount, choose its bill/envelope/Plan when applicable, and save. Use the description for the merchant, such as Costco or Walmart; the selected envelope already supplies the spending category. Review the formatted amount before saving.
+Choose Today or a historical date, then use the plus button to add an entry. Select the category, enter the amount, choose its bill/envelope/Plan when applicable, and save. Use any helpful description, such as Costco or dinner with mom; the selected envelope already supplies the spending category. Review the formatted amount before saving.
 
 For a recurring bill, select the saved bill and confirm its actual payment. A payment above the saved budget creates recovery for the excess. Confirming payments keeps the bill's next due date and reserve calculation tied to actual occurrences.
 

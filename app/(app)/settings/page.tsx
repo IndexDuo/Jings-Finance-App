@@ -13,6 +13,7 @@ import type {
 } from "@/features/onboarding/schemas";
 
 import { SettingsForm } from "./settings-form";
+import { isDemoMode } from "@/lib/demo/config";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export default async function SettingsPage() {
 
     return (
         <SettingsForm
+            demo={isDemoMode()}
             canApplyNow={eligibility.canApplyNow}
             currentPeriodStart={eligibility.currentPeriod > settingsRow.trackingStartDate ? eligibility.currentPeriod : settingsRow.trackingStartDate}
             immediateUnavailableReason={eligibility.reason}

@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, afterAll, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
 const state = vi.hoisted(() => ({ pg: null as unknown as PGlite, user: "10000000-0000-4000-8000-000000000001" }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: state.user } } }) } }) }));
+vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: async () => ({ data: { user: { id: state.user, email: `${state.user}@example.test` } } }) } }) }));
 vi.mock("@/lib/db", async () => {
   const { PGlite } = await import("@electric-sql/pglite");
   const { drizzle } = await import("drizzle-orm/pglite");

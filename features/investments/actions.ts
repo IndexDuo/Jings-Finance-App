@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, schema } from "@/lib/db";
 import { lockAllocationOwner } from "@/features/allocations/server";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 
 import { loadInvestmentAdvanceForPeriod } from "./server";
 
@@ -66,10 +66,7 @@ export async function recordInvestmentTransfer(
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false, error: "Please sign in again." };
 
   const values = parsed.data;
@@ -275,10 +272,7 @@ export async function syncInvestmentAdvanceApplication(input: {
   ) {
     return { ok: false, error: "Invalid investment advance." };
   }
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) return { ok: false, error: "Please sign in again." };
 
   const advance = await loadInvestmentAdvanceForPeriod({

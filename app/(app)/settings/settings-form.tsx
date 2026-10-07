@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ResetDemo } from "@/features/demo/demo-controls";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronLeft, ChevronRight, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -37,6 +38,7 @@ function schedulePreferences({ payFrequency, semimonthlyDays, timezone }: Schedu
 }
 
 export function SettingsForm({
+  demo = false,
   initial,
   nextBoundary,
   scheduledDate,
@@ -46,6 +48,7 @@ export function SettingsForm({
   immediateUnavailableReason,
   currentPeriodStart,
 }: {
+  demo?: boolean;
   initial: SettingsFormInitial;
   trackedBillIds?: string[];
   nextBoundary: string;
@@ -283,12 +286,14 @@ export function SettingsForm({
         )}
       </fieldset>
       {view === "Settings" && <div className="mt-8 flex flex-wrap gap-4 text-system-blue">
+        {demo ? <ResetDemo /> : <>
         <Link href="/reset-password">Reset password</Link>
         <button type="button" disabled={pending} onClick={async () => {
           const { error } = await createClient().auth.signOut();
           if (error) setError("Could not sign out. Please try again.");
           else window.location.replace("/login");
         }}>Sign out</button>
+        </>}
       </div>}
       {saved && (
         <p role="status" className="mt-4 text-[13px] text-system-green">

@@ -12,7 +12,7 @@ import { revalidatePath } from "next/cache";
 import { db, schema } from "@/lib/db";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
 
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { lockAllocationOwner } from "@/features/allocations/server";
 import { incomeEditError } from "@/features/allocations/lib/sources";
 import { fundProjectPurchase, returnPurchaseFunding } from "@/features/projects/purchase-funding";
@@ -30,10 +30,7 @@ import {
 export type MutateResult = { ok: true } | { ok: false; error: string };
 
 async function requireUserId(): Promise<string | null> {
-    const supabase = await createClient();
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    const user = await getAppAuthUser();
     return user?.id ?? null;
 }
 

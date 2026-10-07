@@ -21,7 +21,7 @@ import { loadFinancialConfiguration, financialConfigurationMatches } from "@/fea
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { Money } from "@/lib/money";
 import { parseLocalIsoDate } from "@/lib/dates";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { syncAutomaticGoalSavings } from "@/features/goals/actions";
 import { priorityPlanHasStarted } from "./lib/eligibility";
 import {
@@ -36,8 +36,7 @@ type SyncResult =
   | { ok: false; error: string };
 
 async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   return user?.id ?? null;
 }
 

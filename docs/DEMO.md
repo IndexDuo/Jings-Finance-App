@@ -1,10 +1,12 @@
 # Fictional walkthrough
 
+The optional [interactive demo setup](DEMO_HOSTING.md) gives each visitor a separate fictional copy of the real app. The screenshots below illustrate the longer guided walkthrough; its manually entered dates and records differ from the interactive starter dataset.
+
 This walkthrough uses invented income, expenses, and savings. Screenshots were captured from Jing’s Finance App running locally in a mobile Chromium viewport. The account and its money are separate from any personal installation. There is no shared login or live hosted demo in this release preparation.
 
 ## Recreate the example
 
-Use a separate blank demo installation and a new account, then follow these steps through the UI. A normal installation starts empty; the database setup does not insert this example. You do not need SQL or an administrative key to enter the scenario.
+Use a separate blank standard installation and a new email/password account, then follow these steps through the UI. Leave `FINANCE_DEMO_MODE` unset for this manual walkthrough. A normal installation starts empty; the database setup does not insert this example. You do not need SQL or an administrative key to enter the scenario.
 
 Choose your current local date as the recent payday and use America/New_York for the example timezone. The opening screenshots use October 6, 2026; the later timeline advances to November 5. For a later walkthrough, shift the due dates and Plan dates relative to your own starting date.
 

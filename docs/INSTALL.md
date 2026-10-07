@@ -20,6 +20,10 @@ If an older checkout reports missing `esbuild` entries during `npm ci`, pull the
 
 For `sslmode=verify-full`, download your project's CA certificate from Supabase Database Settings → SSL Configuration. For local installation, save it beside `package.json` as `supabase-ca.crt` and append `&sslrootcert=./supabase-ca.crt` to the existing `DATABASE_URL` after `?sslmode=verify-full`. This resolves `SELF_SIGNED_CERT_IN_CHAIN` by trusting the supplied CA while still checking the server hostname. Use a certificate path available to the deployed server when hosting; a local file path does not automatically exist there.
 
+For Vercel or another host without that local file, set the server-only `DATABASE_SSL_CA` environment variable to the complete PEM CA certificate. Actual newlines and literal `\n` separators are supported. The connection helper removes conflicting connection-string SSL fields and uses that CA with certificate and hostname verification enabled. Never replace this with disabled certificate verification.
+
+For a public interactive demo, follow [demo hosting](DEMO_HOSTING.md) using a separate fresh project. `db:setup:demo` and `FINANCE_DEMO_MODE` are not needed for a normal personal installation.
+
 ## Email confirmation and password reset
 
 The default Supabase email links work with the PKCE `/auth/callback` flow when opened in the browser that initiated signup or reset. Opening a PKCE link in another browser can lack its verifier. The app also provides `/auth/confirm` for token-hash templates that work across browsers.

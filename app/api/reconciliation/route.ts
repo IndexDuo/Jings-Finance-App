@@ -1,14 +1,13 @@
 import { getUserToday } from "@/lib/user-timezone";
 import { format } from "date-fns";
 
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { loadReconciliationReport } from "@/features/reconciliation/server";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   const headers = { "Cache-Control": "private, no-store" };
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401, headers });
   try {

@@ -10,7 +10,7 @@ import { z } from "zod";
 import { calendarDateSchema } from "@/lib/date-schema";
 
 import { db, schema } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 
 import { linkFixedExpensePayment } from "./payment-ledger";
 
@@ -25,8 +25,7 @@ const confirmPaymentSchema = z.object({
 });
 
 async function requireUserId(): Promise<string | null> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   return user?.id ?? null;
 }
 

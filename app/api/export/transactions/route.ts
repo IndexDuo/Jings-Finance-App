@@ -5,16 +5,13 @@ import { asc, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db, schema } from "@/lib/db";
-import { createClient } from "@/lib/supabase/server";
+import { getAppAuthUser } from "@/lib/supabase/app-user";
 
 // GET /api/export/transactions → CSV download of all the user's transactions.
 // Columns: date, category, amount, envelope, note. Amount is signed dollars.
 
 export async function GET() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await getAppAuthUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
