@@ -1,8 +1,8 @@
 import Link from "next/link";
 
 export function DemoBanner() {
-  return <div className="mx-auto mt-3 flex w-full max-w-lg items-center justify-between gap-3 px-5 text-[12px] text-secondary-label">
-    <span>Fictional demo · Your own copy</span>
-    <Link href="/demo" className="text-system-blue">Demo home</Link>
+  return <div className="mx-auto w-full max-w-lg border-b border-separator px-5 py-2 text-[13px] leading-5 text-secondary-label">
+    <p>This is your own copy of the demo.</p>
+    <p>Return to <Link href="/demo" className="rounded-sm text-system-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-system-blue">demo home</Link></p>
   </div>;
 }

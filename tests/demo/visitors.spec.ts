@@ -5,7 +5,7 @@ import { readDemoRows } from "./test-environment";
 
 async function start(page: Page) {
   await page.goto("/demo");
-  await page.getByRole("button", { name: "Start my demo", exact: true }).click();
+  await page.getByRole("button", { name: "Start demo", exact: true }).click();
   await expect(page).toHaveURL(/\/paycheck$/);
   await expect(page.getByRole("heading", { name: "Paycheck", exact: true })).toBeVisible();
   const response = await page.request.get("/api/financial-history");
@@ -20,7 +20,7 @@ test("each visitor owns a persistent copy and cannot read or write another visit
   const errors: string[] = [];
   page.on("pageerror", error => errors.push(error.message));
   const owner = await start(page);
-  await expect(page.getByText("Fictional demo · Your own copy", { exact: true })).toBeVisible();
+  await expect(page.getByText("This is your own copy of the demo.", { exact: true })).toBeVisible();
   await expect(page.getByText("History", { exact: true })).toBeVisible();
   await expect(page.getByText("Income", { exact: true })).toHaveCount(2);
   const baseline = await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [owner])).rows[0].count);
@@ -45,7 +45,7 @@ test("each visitor owns a persistent copy and cannot read or write another visit
   await page.reload();
   await expect(page.getByText(description, { exact: true })).toBeVisible();
   await page.goto("/demo");
-  await page.getByRole("link", { name: "Continue my demo", exact: true }).click();
+  await page.getByRole("link", { name: "Continue demo", exact: true }).click();
   expect(await startOwner(page)).toBe(owner);
 
   const secondContext = await browser.newContext();
@@ -61,7 +61,7 @@ test("each visitor owns a persistent copy and cannot read or write another visit
   expect(mutation).toBeDefined();
   const headers = mutation!.headers();
   const replay = await second.request.post(new URL(mutation!.url()).pathname, { headers: {
-    "next-action": headers["next-action"], "content-type": headers["content-type"], origin: "http://127.0.0.1:3102",
+    "next-action": headers["next-action"], "content-type": headers["content-type"], origin: new URL(mutation!.url()).origin,
   }, data: mutation!.postData()! });
   expect(replay.status()).toBe(200);
   expect(await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [other])).rows[0].count)).toBe(baseline);

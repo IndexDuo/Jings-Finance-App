@@ -23,14 +23,14 @@ The command installs the normal baseline plus a private marker matching the demo
 2. Disable email/password and other providers for this demo project. No visitor email or password is needed.
 3. Keep manual identity linking disabled. Demo sessions are not intended to become personal accounts.
 4. Before opening the demo to the public, create a [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) widget for the demo hostname. Copy its secret into Supabase **Authentication → Bot and Abuse Protection** and enable CAPTCHA with Turnstile.
-5. Put the widget’s **public site key** in `DEMO_TURNSTILE_SITE_KEY` in the app environment. The widget appears before Start my demo. Its secret belongs in Supabase, not in this repository or the browser.
+5. Put the widget’s **public site key** in `DEMO_TURNSTILE_SITE_KEY` in the app environment. The widget appears before Start demo. Its secret belongs in Supabase, not in this repository or the browser.
 6. Keep Supabase’s anonymous sign-in rate limit enabled. Starting fresh creates another Auth identity, so resets count toward that limit too.
 
 For localhost verification, you may leave CAPTCHA off in the disposable local Auth service. Public hosting should use it. See [Supabase Anonymous Sign-Ins](https://supabase.com/docs/guides/auth/auth-anonymous) for session and rate-limit behavior.
 
 ## 3. Try it locally
 
-Run `npm run dev`, then open `http://localhost:3000/demo` and choose **Start my demo**.
+Run `npm run dev`, then open `http://localhost:3000/demo` and choose **Start demo**.
 
 The fictional account has $2,000 biweekly pay, rent and Internet bills, Groceries/Transport/Fun money envelopes, merchant-style spending descriptions, and two earlier paycheck periods. Plans use distinct icons and colors. Home workspace has $375 left after $125 of purchases; Bike upgrade has a Parts group and a $75 purchase needing future money. Weekend trip starts saving next payday.
 
@@ -62,7 +62,7 @@ If you downloaded `supabase-ca.crt`, open it and copy the entire `BEGIN CERTIFIC
 6. Add the exact deployed hostname to the Turnstile widget and verify its visitor check loads. Configure any custom domain in both places before sharing it.
 7. Test one normal browser and one private window on the hosted site, as in step 3. Also try Add to Home Screen on iPhone. Add the verified live URL to the README only after this works.
 
-The demo-only `/api/demo-health` endpoint verifies that the server can read the matching private demo marker. It returns HTTP 200 with `{"status":"ready"}`, or HTTP 503 with `{"status":"unavailable"}`. It returns no visitor data or credentials and is unavailable on personal installations. With Vercel protection enabled, access it through your authorized Vercel session. An unavailable response means the database connection or marker needs checking; runtime logs report only a bounded error code. For `SELF_SIGNED_CERT_IN_CHAIN`, configure the trusted `DATABASE_SSL_CA` certificate and redeploy rather than disabling TLS verification. This readiness check does not replace testing Start my demo, persistence, or visitor isolation.
+The demo-only `/api/demo-health` endpoint verifies that the server can read the matching private demo marker. It returns HTTP 200 with `{"status":"ready"}`, or HTTP 503 with `{"status":"unavailable"}`. It returns no visitor data or credentials and is unavailable on personal installations. With Vercel protection enabled, access it through your authorized Vercel session. An unavailable response means the database connection or marker needs checking; runtime logs report only a bounded error code. For `SELF_SIGNED_CERT_IN_CHAIN`, configure the trusted `DATABASE_SSL_CA` certificate and redeploy rather than disabling TLS verification. This readiness check does not replace testing Start demo, persistence, or visitor isolation.
 
 Git pushes to a Vercel-linked deployment branch can trigger new deployments. Connecting GitHub is part of the Vercel project setup; a separate Supabase GitHub integration is not required.
 

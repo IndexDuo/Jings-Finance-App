@@ -37,7 +37,7 @@ export function StartDemo({ siteKey }: { siteKey?: string }) {
       <div ref={container} />
     </>}
     <button type="button" disabled={pending || Boolean(siteKey && !token)}
-      className="w-full rounded-2xl bg-system-blue px-5 py-3 text-white font-semibold disabled:opacity-50"
+      className="w-full rounded-2xl bg-system-blue px-5 py-4 text-white font-semibold disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-system-blue"
       onClick={() => transition(async () => {
         setError(null);
         const result = await startDemo({ captchaToken: token });
@@ -48,7 +48,7 @@ export function StartDemo({ siteKey }: { siteKey?: string }) {
           const turnstile = (window as Window & { turnstile?: Turnstile }).turnstile;
           if (widget.current && turnstile) turnstile.reset(widget.current);
         }
-      })}>{pending ? "Preparing your demo…" : "Start my demo"}</button>
+      })}>{pending ? "Preparing your demo…" : "Start demo"}</button>
     {error && <p role="alert" className="text-[13px] text-system-red">{error}</p>}
   </div>;
 }
@@ -58,7 +58,7 @@ export function ResetDemo() {
   const [pending, transition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   return <div>
-    <button type="button" disabled={pending} onClick={() => {
+    <button type="button" disabled={pending} className="min-h-11 rounded-lg px-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-system-blue" onClick={() => {
       if (!window.confirm("Start a fresh fictional demo? You won’t be able to return to this copy after resetting.")) return;
       transition(async () => {
         setError(null);

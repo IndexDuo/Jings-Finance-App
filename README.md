@@ -84,7 +84,7 @@ Paycheck details and history after advancing through later paydays:
 | --- | --- |
 | <img src="docs/screenshots/16-paycheck-breakdown.png" width="240" alt="Full expanded paycheck breakdown with bills, envelopes, saving, and the investment remainder"> | <img src="docs/screenshots/17-paycheck-history.png" width="240" alt="Populated History card with two past paychecks of fictional activity"> |
 
-Explore the [fictional walkthrough with screenshots](docs/DEMO.md), or follow [demo hosting](docs/DEMO_HOSTING.md) to run an interactive demo where each visitor starts with their own fictional dataset. Read the [user guide](docs/USER_GUIDE.md) for everyday use.
+Try the [interactive demo](https://jings-finance-demo.vercel.app/demo), where each visitor starts with their own made-up records, or explore the [fictional walkthrough with screenshots](docs/DEMO.md). Use fictional information in the demo. Read the [user guide](docs/USER_GUIDE.md) for everyday use, or follow [demo hosting](docs/DEMO_HOSTING.md) to host a demo yourself.
 
 ## What this app doesn’t do
 
