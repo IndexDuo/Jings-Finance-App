@@ -23,6 +23,7 @@ import {
   type BottomSheetProps,
 } from "@/components/ui/bottom-sheet";
 import { GroupedCard } from "@/components/ui/card";
+import { DateInput } from "@/components/ui/date-input";
 import { MoneyInput } from "@/components/ui/money-input";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { cn } from "@/lib/utils";
@@ -806,8 +807,8 @@ function PriorityPlanForm({
         <label className="mb-1 block text-[13px] font-medium text-secondary-label">
           Start with paycheck
         </label>
-        <input
-          type="date"
+        <DateInput
+          aria-label="Start with paycheck"
           value={startDate}
           min={plan.expenseDate ?? undefined}
           onChange={(event) => setStartDate(event.target.value)}
@@ -818,8 +819,8 @@ function PriorityPlanForm({
         <label className="mb-1 block text-[13px] font-medium text-secondary-label">
           Target date
         </label>
-        <input
-          type="date"
+        <DateInput
+          aria-label="Target date"
           value={dueDate}
           min={startDate}
           onChange={(event) => setDueDate(event.target.value)}
@@ -1278,8 +1279,7 @@ function GoalForm({
         <label className="mb-1 block text-[13px] font-medium text-secondary-label">
           Target date
         </label>
-        <input
-          type="date"
+        <DateInput
           aria-label="Target date"
           value={targetDate}
           onChange={(e) => setTargetDate(e.target.value)}
@@ -1302,7 +1302,7 @@ function GoalForm({
           </p>
         </div>
       )}
-      <div className="space-y-4 rounded-card bg-secondary-system-bg p-4">
+      <div className="min-w-0 space-y-4 rounded-card bg-secondary-system-bg p-4">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p
@@ -1349,9 +1349,8 @@ function GoalForm({
             >
               Start with paycheck
             </label>
-            <input
+            <DateInput
               id="plan-saving-start"
-              type="date"
               value={savingStartDate}
               onChange={(e) => setSavingStartDate(e.target.value)}
               className="h-12 w-full min-w-0 rounded-button bg-system-bg px-4 text-[17px] text-label outline-none"

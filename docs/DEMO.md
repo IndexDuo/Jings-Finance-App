@@ -2,6 +2,8 @@
 
 Try the [live demo](https://jings-finance-demo.vercel.app/demo) without an email or password. **Start demo** opens Log with your own copy of the example records. You can change them and explore the app. Other visitors get their own copies.
 
+The app works best on a phone. On a wider screen, choose **Proceed anyway** to try it there.
+
 The screenshots below show a separate example built through the app, from setup to later paydays. Its dates and amounts differ from the live demo. All of its money is made up.
 
 ## The example budget

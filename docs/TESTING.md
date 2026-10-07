@@ -52,6 +52,8 @@ Demo tests use port 3102 and public anonymous sign-in. They do not need a servic
 
 `visitors.spec.ts` checks separate visitor copies, Start/Continue opening Log, reload persistence, blocked access to another visitor's records, the centered Log-only notice, reset, and simultaneous first visits. It also checks that finishing Home workspace releases $375 and that the funding totals agree.
 
+`layout.spec.ts` checks the wide-screen phone suggestion and **Proceed anyway**, including keeping the same copy when continuing. It also checks that Plan date fields fit at small phone widths and keep their values after saving and editing.
+
 For a production browser check, build with the local demo settings and run `npm start -- --hostname 127.0.0.1 --port 3102` with the same settings. Then run the demo tests; the config reuses that server. Leave analytics unset to avoid counting test visits.
 
 These tests use Chromium with phone-sized screens. They do not replace checking Safari on a real iPhone, Android, or [the hosted demo steps](DEMO_HOSTING.md#5-check-the-hosted-copy).

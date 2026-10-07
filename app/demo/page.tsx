@@ -5,13 +5,14 @@ import { isDemoMode } from "@/lib/demo/config";
 import { getVerifiedUser } from "@/lib/supabase/verified-user";
 import { StartDemo, ResetDemo } from "@/features/demo/demo-controls";
 import { DemoHelp } from "@/features/demo/demo-help";
+import { DemoDeviceNotice } from "@/features/demo/demo-device-notice";
 
 export const dynamic = "force-dynamic";
 
 export default async function DemoPage() {
   if (!isDemoMode()) notFound();
   const user = await getVerifiedUser();
-  return <main className="mx-auto flex min-h-dvh w-full max-w-lg flex-col justify-center px-5 py-14 text-center">
+  return <DemoDeviceNotice>
     <h1 className="text-[28px] font-bold leading-tight tracking-tight">{APP_NAME}</h1>
     <p className="mx-auto mt-6 max-w-sm text-[17px] leading-relaxed">
       See where your money goes, what you can spend, and what’s left to invest.
@@ -26,5 +27,5 @@ export default async function DemoPage() {
       </>}
     </div>
     <div className="mt-12"><DemoHelp /></div>
-  </main>;
+  </DemoDeviceNotice>;
 }

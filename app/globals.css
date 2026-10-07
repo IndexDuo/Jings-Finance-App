@@ -179,6 +179,23 @@
   }
 }
 
+/* Safari's date control has an intrinsic width even inside a narrower card. */
+.native-date-input {
+  inline-size: 100%;
+  min-inline-size: 0;
+  max-inline-size: 100%;
+}
+
+.native-date-input::-webkit-date-and-time-value {
+  min-inline-size: 0;
+  text-align: left;
+}
+
+.native-date-input::-webkit-datetime-edit {
+  min-inline-size: 0;
+  padding: 0;
+}
+
 @keyframes ledger-number-rise {
   from {
     opacity: 0.62;

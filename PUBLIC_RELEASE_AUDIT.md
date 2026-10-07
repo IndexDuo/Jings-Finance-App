@@ -6,6 +6,7 @@ Started October 6, 2026; updated October 7. This file keeps the release's check 
 
 - [The demo](https://jings-finance-demo.vercel.app/demo) is public. Production does not require a Vercel login; Preview deployments remain protected.
 - Start and Continue open Log. The return link appears centered below Log's cards only. Each visitor gets a separate copy with made-up records.
+- Demo home shows a phone suggestion above 600px wide, with **Proceed anyway** to open the usual Start/Continue controls. Plan date inputs now have explicit sizing for Safari's native control. Local Chromium checks passed at 320–430px, including saved date edits and continuing the same demo copy. Physical iPhone verification is still needed; the cloud network blocked downloading Playwright's WebKit browser.
 - The latest app deployment, `dpl_CuSzDotEyXmKLJDPPZykX2f4gcV2`, reached READY. The hosted page and database connection were checked; the Google tag is installed in Production.
 - Google Analytics Realtime collection and the Supabase Auth Site URL still need to be checked in the owner's dashboard. Turnstile is not configured, and the Vercel project is not connected for automatic Git deployments.
 - The owner verified starting a hosted demo. Separate-copy, reload, and reset checks passed locally; full hosted browser checks and physical iPhone installation are not recorded as complete. The cloud network blocks automated hosted browser access.
