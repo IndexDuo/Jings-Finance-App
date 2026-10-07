@@ -17,15 +17,18 @@ Updated October 7, 2026. The app is deployed for protected testing; it is not re
 - Added `/api/demo-health`: a demo-only, uncached, read-only check of the database marker. It returns no visitor data or connection details; failures log only a bounded error code. Its three focused tests, five Auth helper tests, TypeScript, and affected-file lint passed.
 - Follow-up deployment `dpl_Hhcj2e7UwTSQCDqrddmjDmSD6mJE` with the readiness endpoint reached READY. Its database check returned HTTP 503. Initial runtime diagnostics reported `UNAVAILABLE`, so the database connection is not verified.
 - Started deployment `dpl_Dy8gCTLg9hHvVHHHGYeC64u7pYFE` with bounded traversal of wrapped PostgreSQL error codes to diagnose that failure without exposing connection details. Deployment URL: `https://jings-finance-demo-rli361xbs-jing-li-projects.vercel.app`.
+- That diagnostic confirmed `SELF_SIGNED_CERT_IN_CHAIN`. Preserved the owner's remote certificate commit `833a93f`, rebased the release work onto it, and saved its verified public Supabase Root 2021 CA as `DATABASE_SSL_CA` in Vercel.
+- Deployment `dpl_F8vofSYZMKNsAB81EReRcRjTmnjr` reached READY. Its database readiness check returned HTTP 200 with `{"status":"ready"}`; the demo entry page also returned HTTP 200. TLS certificate and hostname verification remain enabled.
+- The current protected demo origin is `https://jings-finance-demo.vercel.app`. Vercel Authentication remains set to `all`.
+- Pushed release implementation commit `bc03e55` to GitHub's `initial-release` branch and verified the remote commit. All 412 tests across 51 files passed; the focused readiness tests also passed after updating wrapped error-code handling.
 
 The earlier `jings-finance-dev` project is paused. Local app copies configured to use that project cannot connect while it is paused. The separate private `fire-tracker` project was not modified.
 
 ## Pending
 
-1. Verify the follow-up deployment's build and database readiness. Supply `DATABASE_SSL_CA` if the connection requires the Supabase CA certificate; preserve certificate verification.
-2. Run the complete hosted visitor flow. The cloud executor's network proxy denied direct access to the deployment hostname, so hosted browser testing is blocked in this session. The Vercel authenticated fetch connection can verify HTTP pages but does not drive interactive browser actions.
-3. Configure Cloudflare Turnstile in Supabase and the app, then verify its check on the deployed hostname before public sharing.
-4. Set the Supabase Auth Site URL to the verified demo origin, test two independent visitor sessions and reset/persistence, then make the intended demo URL publicly accessible.
-5. Add the verified demo URL to the README. Connect the existing Vercel project to `IndexDuo/Jings-Finance-App` and set its production branch to `initial-release` for future Git deployments. The connected project-creation helper cannot reconnect an existing unlinked project, so use the Vercel project's Git settings for that step.
+1. Run the complete hosted visitor flow. The cloud executor's network proxy denied direct access to the deployment hostname, so hosted browser testing is blocked in this session. The Vercel authenticated fetch connection can verify HTTP pages but does not drive interactive browser actions. The owner has been asked to test Start my demo.
+2. Configure Cloudflare Turnstile in Supabase and the app, then verify its check on the deployed hostname before public sharing.
+3. Set the Supabase Auth Site URL to the verified demo origin, test two independent visitor sessions and reset/persistence, then make the intended demo URL publicly accessible.
+4. Add the verified public demo URL to the README. Connect the existing Vercel project to `IndexDuo/Jings-Finance-App` and set its production branch to `initial-release` for future Git deployments. The connected project-creation helper cannot reconnect an existing unlinked project, so use the Vercel project's Git settings for that step.
 
 See [the full hosting guide](DEMO_HOSTING.md) for details. Hosted browser testing has not run; the prior browser test results describe local fixtures only.
