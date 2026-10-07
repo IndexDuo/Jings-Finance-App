@@ -6,7 +6,64 @@ import { eq, sql } from "drizzle-orm";
 import { db, schema } from "@/lib/db";
 import { parseLocalIsoDate, todayInUserTz } from "@/lib/dates";
 import { fundProjectPurchase } from "@/features/projects/purchase-funding";
+import { linkFixedExpensePayment } from "@/features/fixed-expenses/payment-ledger";
+import { retreatFixedExpenseDueDate } from "@/features/fixed-expenses/lib/schedule";
 import { isDemoMode } from "./config";
+
+type DemoTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type DemoBill = typeof schema.fixedExpenses.$inferSelect;
+
+/** Real confirmations, not just display rows: reminders and payment history agree. */
+async function addDemoBillPayments(tx: DemoTransaction, userId: string, bills: DemoBill[], seedDate: string) {
+  const recentPaid = addDays(parseLocalIsoDate(seedDate), -1);
+  const previousPaid = retreatFixedExpenseDueDate(recentPaid, "monthly");
+  for (const bill of bills) {
+    const due = parseLocalIsoDate(bill.nextDueDate!);
+    const occurrences = [
+      { due, paid: recentPaid },
+      { due: retreatFixedExpenseDueDate(due, "monthly"), paid: previousPaid },
+    ];
+    // Confirm the latest legacy cycle first. On an older demo copy this avoids
+    // enrolling an already-paid cycle as new funding with an artificial shortfall.
+    for (const occurrence of occurrences) {
+      const dueDate = format(occurrence.due, "yyyy-MM-dd");
+      const paidDate = format(occurrence.paid, "yyyy-MM-dd");
+      const [entry] = await tx.insert(schema.transactions).values({ userId, date: paidDate,
+        category: "fixed", amountCents: -bill.amountCents, note: bill.name,
+        fixedExpenseId: bill.id, fixedExpenseDueDate: dueDate }).returning();
+      await linkFixedExpensePayment(tx, { userId, transactionId: entry.id,
+        fixedExpenseId: bill.id, dueDate, paidDate, actualCents: bill.amountCents,
+        note: "Fictional demo bill payment" });
+    }
+  }
+}
+
+/** Repair old starter copies once per untouched bill; never replace visitor edits. */
+async function repairDemoBillHistory(userId: string) {
+  await db.transaction(async tx => {
+    // Use the same owner lock as ordinary money changes, including payments.
+    await tx.select({ id: schema.settings.userId }).from(schema.settings).where(eq(schema.settings.userId, userId)).for("update");
+    const revisions = await tx.select().from(schema.financialSettingsRevisions).where(eq(schema.financialSettingsRevisions.userId, userId));
+    const initial = revisions.find(row => (row.snapshot as { sequence?: number }).sequence === 1);
+    const snapshot = initial?.snapshot as { kind?: string; settings?: { payAnchorDate?: string }; fixedExpenses?: DemoBill[] } | undefined;
+    if (snapshot?.kind !== "financial-config-v1" || !snapshot.settings?.payAnchorDate || !snapshot.fixedExpenses) return;
+    const seedDate = format(addDays(parseLocalIsoDate(snapshot.settings.payAnchorDate), 4), "yyyy-MM-dd");
+    const current = await tx.select().from(schema.fixedExpenses).where(eq(schema.fixedExpenses.userId, userId));
+    const payments = await tx.select().from(schema.fixedExpensePayments).where(eq(schema.fixedExpensePayments.userId, userId));
+    const untouched = current.filter(bill => {
+      const original = snapshot.fixedExpenses!.find(row => row.id === bill.id);
+      return original && ((original.name === "Apartment rent" && original.amountCents === 100000) ||
+        (original.name === "Internet" && original.amountCents === 6000)) &&
+        !bill.archivedAt && bill.frequency === "monthly" && bill.name === original.name &&
+        bill.amountCents === original.amountCents && bill.nextDueDate === original.nextDueDate &&
+        bill.dueDay === original.dueDay && !bill.lastPaidDate &&
+        !payments.some(payment => payment.fixedExpenseId === bill.id);
+    });
+    if (!untouched.length) return;
+    await tx.execute(sql`SELECT set_config('app.financial_change_reason', 'Fictional interactive demo bill history repair', true)`);
+    await addDemoBillPayments(tx, userId, untouched, seedDate);
+  });
+}
 
 /** A demo flag alone cannot seed an ordinary or mismatched project database. */
 export async function assertDemoInstallation() {
@@ -27,7 +84,7 @@ export async function ensureDemoDataset(user: User) {
   await assertDemoInstallation();
   const userId = user.id;
   const initialized = await db.select({ userId: schema.settings.userId }).from(schema.settings).where(eq(schema.settings.userId, userId));
-  if (initialized.length) return;
+  if (initialized.length) return repairDemoBillHistory(userId);
   const timezone = "America/New_York";
   const today = format(todayInUserTz(timezone), "yyyy-MM-dd");
   const day = (offset: number) => format(addDays(parseLocalIsoDate(today), offset), "yyyy-MM-dd");
@@ -61,6 +118,7 @@ export async function ensureDemoDataset(user: User) {
     await tx.insert(schema.financialSettingsRevisions).values({ userId, effectiveDate: start, createdAt: stamp(start),
       snapshot: { kind: "financial-config-v1", sequence: 1, openingBudgetDate: start,
         settings, fixedExpenses: bills, envelopes } });
+    await addDemoBillPayments(tx, userId, bills, today);
 
     const [trip, workspace, bike] = await tx.insert(schema.goals).values([
       { userId, name: "Weekend trip", targetCents: 60000, targetDate: day(60), currentCents: 20000,

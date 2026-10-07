@@ -38,7 +38,7 @@ test("each visitor owns a persistent copy and cannot read or write another visit
   await expect(page.getByText("History", { exact: true })).toBeVisible();
   await expect(page.getByText("Income", { exact: true })).toHaveCount(2);
   const baseline = await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [owner])).rows[0].count);
-  expect(baseline).toBe(12);
+  expect(baseline).toBe(16);
   const copy = await page.context().newPage();
   await Promise.all([page.reload(), copy.goto("/paycheck")]);
   expect(await readDemoRows(async c => (await c.query("SELECT count(*)::int AS count FROM transactions WHERE user_id=$1", [owner])).rows[0].count)).toBe(baseline);
@@ -136,7 +136,7 @@ test("reset starts a fresh visitor without deleting the previous copy or showing
   expect(other).not.toBe(owner);
   const owners = await readDemoRows(async c => (await c.query("SELECT user_id,count(*)::int AS count FROM transactions WHERE user_id=ANY($1::uuid[]) GROUP BY user_id", [[owner, other]])).rows);
   expect(owners).toHaveLength(2);
-  expect(owners.every(r => r.count === 12)).toBe(true);
+  expect(owners.every(r => r.count === 16)).toBe(true);
   await page.goto("/signup");
   await expect(page).toHaveURL(/\/demo$/);
   await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
@@ -166,7 +166,7 @@ test("concurrent first visits seed an anonymous owner only once", async ({ conte
     (SELECT count(*)::int FROM transactions WHERE user_id=$1) AS purchases,
     (SELECT count(*)::int FROM goals WHERE user_id=$1) AS plans,
     (SELECT count(*)::int FROM financial_settings_revisions WHERE user_id=$1) AS revisions`, [owner])).rows[0]);
-  expect(counts).toEqual({ purchases: 12, plans: 3, revisions: 1 });
+  expect(counts).toEqual({ purchases: 16, plans: 3, revisions: 1 });
   const history = await (await first.request.get("/api/financial-history")).json();
   expect(history.entries.filter((entry: { tableName: string }) => entry.tableName === "transactions")
     .every((entry: { reason: string }) => entry.reason === "Fictional interactive demo starter data")).toBe(true);

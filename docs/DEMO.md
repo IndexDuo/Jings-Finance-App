@@ -4,6 +4,8 @@ Try the [live demo](https://jings-finance-demo.vercel.app/demo) without an email
 
 The app works best on a phone. On a wider screen, choose **Proceed anyway** to try it there.
 
+The live demo includes two months of rent and Internet payments. Open Paycheck → History → By month to see them. These example bills were paid early; their next reminders are for the following monthly payments.
+
 The screenshots below show a separate example built through the app, from setup to later paydays. Its dates and amounts differ from the live demo. All of its money is made up.
 
 ## The example budget
