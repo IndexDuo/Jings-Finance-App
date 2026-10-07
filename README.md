@@ -101,7 +101,7 @@ Here is the full paycheck breakdown and history after a few more paydays:
 | --- | --- |
 | <img src="docs/screenshots/16-paycheck-breakdown.png" width="240" alt="Full expanded paycheck breakdown with bills, envelopes, saving, and the investment remainder"> | <img src="docs/screenshots/17-paycheck-history.png" width="240" alt="Populated History card with two past paychecks of fictional activity"> |
 
-See the [walkthrough with screenshots](docs/DEMO.md) for more examples. If you want to host a public demo yourself, follow [demo hosting](docs/DEMO_HOSTING.md).
+See the [walkthrough with screenshots](docs/DEMO.md) for more examples.
 
 ## What this app doesn’t do
 

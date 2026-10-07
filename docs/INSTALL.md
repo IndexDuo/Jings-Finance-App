@@ -85,7 +85,7 @@ Add the connection settings from step 3 to Vercel's Production environment. Stor
 
 For example, `https://your-app.vercel.app` is the Site URL and `https://your-app.vercel.app/auth/callback` is the redirect URL.
 
-For a local production check, use `npm run build` followed by `npm start`. See [demo hosting](DEMO_HOSTING.md) only if you want a separate public app with made-up records.
+For a local production check, use `npm run build` followed by `npm start`.
 
 ## Email links and password reset
 

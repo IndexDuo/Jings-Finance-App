@@ -10,7 +10,29 @@ Started October 6, 2026; updated October 7. This file keeps the release's check 
 - The latest app deployment, `dpl_Hi3GZtytzoJP8hcWu5ebSagvGehm`, reached READY. The hosted page and database connection were checked; the Google tag is installed in Production.
 - Google Analytics Realtime collection and the Supabase Auth Site URL still need to be checked in the owner's dashboard. Turnstile is not configured, and the Vercel project is not connected for automatic Git deployments.
 - The owner verified starting a hosted demo. Separate-copy, reload, and reset checks passed locally; full hosted browser checks and physical iPhone installation are not recorded as complete. The cloud network blocks automated hosted browser access.
-- Use [demo hosting](docs/DEMO_HOSTING.md) for setup and hosted checks. The old paused development project is separate from the active demo; its app copies cannot connect while it is paused.
+- See the [owner notes](#owner-notes-for-the-hosted-demo) for maintenance and hosted checks. The old paused development project is separate from the active demo; its app copies cannot connect while it is paused.
+
+## Owner notes for the hosted demo
+
+These notes are for maintaining this repository's existing demo. People using the app only need the demo link, user guide, or personal installation steps.
+
+Keep the demo's Supabase and Vercel projects separate from personal copies. Its configured connections belong to the demo, with `FINANCE_DEMO_MODE=true`. Do not rerun fresh database setup over its existing records.
+
+In Supabase Auth, keep new signups and anonymous sign-ins on. Keep manual linking, Email, and other sign-in providers off. The signup switch is needed even though visitors do not enter an email.
+
+Deploy updates to the existing `jings-finance-demo` Vercel project in Production. It uses Node 24, `npm ci`, and `npm run build`. Git is not connected for automatic deployments, so pushing code alone does not update the demo. Keep Production public and Preview protected.
+
+Check project usage over time. Starting fresh creates another visitor copy; it does not delete old accounts or records. Automatic cleanup is not included. Pending dashboard checks are listed in [current demo status](#current-demo-status).
+
+### Check the hosted demo
+
+1. Start a demo and confirm Log opens.
+2. Add a purchase and reload. It should remain.
+3. Open a private window. It should get a separate copy.
+4. Return to Demo home and choose Continue. Your edits should remain.
+5. Start fresh. It should open a new copy.
+
+Also check the Plan date fields and Add to Home Screen on an iPhone. `/api/demo-health` returning `{"status":"ready"}` confirms the database marker can be read, but does not replace these browser checks.
 
 ## Repository provenance
 
@@ -168,7 +190,7 @@ Starter records include $2,000 biweekly pay, bills, three envelopes, merchant-st
 
 The seed is one atomic transaction under an owner lock. Simultaneous first requests produce one dataset; returning requests reuse it without changing dates or overwriting edits. Dates are relative to the visitor's first start in America/New_York and use the existing schedule/calendar logic afterward. Cookies keep access in the same browser while the anonymous session remains valid. Reset signs out that copy; starting again creates a new identity and dataset, without deleting retained history. Password and sign-out controls are replaced by Start fresh demo on the main Settings view only.
 
-Added an optional Turnstile visitor check, with server verification delegated to Supabase Auth. `docs/DEMO_HOSTING.md` documents a dedicated Supabase project, anonymous Auth, Vercel project/branch/Node configuration, environment variables, CAPTCHA, and hosted browser checks. Hosted CAPTCHA and physical Add to Home Screen still require deployment verification. Anonymous accounts and records accumulate; no automatic cleanup or deletion schedule is claimed.
+Added an optional Turnstile visitor check, with server verification delegated to Supabase Auth. Hosted CAPTCHA and physical Add to Home Screen still require deployment verification. Anonymous accounts and records accumulate; no automatic cleanup or deletion schedule is claimed.
 
 Added server-only `DATABASE_SSL_CA` support for hosts without the user's local certificate file. The helper removes conflicting connection-string SSL fields when a CA is supplied and keeps certificate/hostname verification enabled. Existing connection-string configuration remains unchanged when the variable is absent. No dependency versions or normal financial schema were changed.
 
@@ -184,7 +206,7 @@ Created a separate Vercel project with Node 24 and saved its configuration and o
 
 The new readiness endpoint is read-only, uncached, and demo-only. It exposes no visitor data or connection details, and logs only bounded error codes through wrapped PostgreSQL errors. **412 tests across 51 files** passed; the focused readiness tests passed after refining wrapped error-code handling, and TypeScript/affected-file lint passed.
 
-Release implementation commit `bc03e55` was pushed to `initial-release` after preserving the owner's remote work. At that step, the GitHub repository had not been made public. Current hosting status is summarized [above](#current-demo-status); setup steps are in [demo hosting](docs/DEMO_HOSTING.md). The owner's first hosted Start my demo attempt exposed Supabase `signup_disabled`; enabling global signups resolved it, and the owner confirmed Paycheck opened with fictional data. Read-only verification confirmed one anonymous visitor and the expected starter records. Automated hosted browser verification remains blocked by the cloud network. Public CAPTCHA, production origin configuration, visitor persistence/isolation checks, and physical iPhone installation are not claimed as verified. The Vercel project is deployed directly from source and is not yet connected for automatic Git deployments.
+Release implementation commit `bc03e55` was pushed to `initial-release` after preserving the owner's remote work. At that step, the GitHub repository had not been made public. Current hosting status is summarized [above](#current-demo-status); maintenance notes are [above](#owner-notes-for-the-hosted-demo). The owner's first hosted Start my demo attempt exposed Supabase `signup_disabled`; enabling global signups resolved it, and the owner confirmed Paycheck opened with fictional data. Read-only verification confirmed one anonymous visitor and the expected starter records. Automated hosted browser verification remains blocked by the cloud network. Public CAPTCHA, production origin configuration, visitor persistence/isolation checks, and physical iPhone installation are not claimed as verified. The Vercel project is deployed directly from source and is not yet connected for automatic Git deployments.
 
 Implemented the owner's approved simpler demo home and banner, with Start/Continue, a lighter reset action, and optional everyday-language definitions of Envelope, Plan, and Project. The local production build, TypeScript, affected-file lint, and two existing production browser regressions passed, including visitor isolation, edit/reload persistence, Continue, reset, and account-control visibility. Additional mobile-sized Chromium checks passed for term-sheet dismissal and focus restoration, the banner link, and 320px overflow. These checks do not claim physical Safari verification.
 
@@ -196,7 +218,9 @@ At the owner's request, added opt-in standard Google Analytics to demo mode only
 
 ## Documentation review — October 7, 2026
 
-Reduced the docs folder from nine Markdown files to six focused guides. The user guide and screenshot walkthrough are the main reading path; installation, demo hosting, money rules, and testing are optional references. All six now use short steps, simple words, and examples. The old README pointer was removed, date-check results moved into testing, and the demo progress log was replaced by the current status above. Stale live-demo claims and signup instructions were corrected against the current app. All 22 screenshots were retained. Checks passed for 67 local links and headings, npm script names, example math, stale file references, and connection-password patterns. This was a documentation-only review; app tests were not rerun.
+Reduced the docs folder from nine Markdown files to six focused guides at that step. The user guide and screenshot walkthrough became the main reading path; installation, money rules, and testing were optional references. All six used short steps, simple words, and examples. The old README pointer was removed, date-check results moved into testing, and the demo progress log was replaced by the current status above. Stale live-demo claims and signup instructions were corrected against the current app. All 22 screenshots were retained. Checks passed for 67 local links and headings, npm script names, example math, stale file references, and connection-password patterns. This was a documentation-only review; app tests were not rerun.
+
+The owner later clarified that only they need to host a demo. Removed that guide and its links from the public reading path, leaving five guides. Short maintenance notes and hosted checks now live in this audit. The README still links directly to the live demo.
 
 ## Remaining publication decisions and limitations
 
@@ -204,5 +228,5 @@ Reduced the docs folder from nine Markdown files to six focused guides. The user
 - **Stale behavior:** compatibility for nullable historical purchase funding remains because surviving accounting paths use it; no repair/backfill workflow is exposed. Product stays USD/English with manual entry. PostgreSQL driver 8 queues concurrent transaction queries but logs a deprecation warning; a future driver 9 upgrade needs transaction-query serialization review. The owner selected “Jing’s Finance App”; the existing blue finance icon remains.
 - **Security risk:** production dependency audit is clear. Development audit retains advisories in `braces`/glob tooling and legacy Drizzle Kit's esbuild loader; details and final counts below. Avoid exposing developer tooling to untrusted clients; production does not ship these tools. This review is not an independent penetration test.
 - **Migration risk:** do not apply the fresh baseline to an existing private database. No old-account migration or account-deletion workflow was added. Retained financial journals are intentionally append-only.
-- **Deployment risk:** the dedicated hosted demo is installed, its entry page/database readiness are verified, and production is public as requested. Turnstile remains unconfigured. Hosted visitor persistence/isolation/reset flows and a physical iPhone Add to Home Screen installation remain unverified. Normal personal-installation production SMTP was not configured in this work. Local verification uses real GoTrue email/password and anonymous Auth, PostgreSQL 17, local Mailpit, and Chromium, plus PostgreSQL-compatible PGlite integration tests. See [current demo status](#current-demo-status) and [hosted checks](docs/DEMO_HOSTING.md#5-check-the-hosted-copy).
+- **Deployment risk:** the dedicated hosted demo is installed, its entry page/database readiness are verified, and production is public as requested. Turnstile remains unconfigured. Hosted visitor persistence/isolation/reset flows and a physical iPhone Add to Home Screen installation remain unverified. Normal personal-installation production SMTP was not configured in this work. Local verification uses real GoTrue email/password and anonymous Auth, PostgreSQL 17, local Mailpit, and Chromium, plus PostgreSQL-compatible PGlite integration tests. See [current demo status](#current-demo-status) and [hosted checks](#check-the-hosted-demo).
 - Owner decisions before publishing: approve the diff and attribution; review the README draft, screenshots, icon, and repository description; choose hosting/domain and email service; decide whether the documented calendar/currency conventions fit the intended audience. Publishing remains a separate explicitly authorized action.

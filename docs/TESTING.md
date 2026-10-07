@@ -56,7 +56,7 @@ Demo tests use port 3102 and public anonymous sign-in. They do not need a servic
 
 For a production browser check, build with the local demo settings and run `npm start -- --hostname 127.0.0.1 --port 3102` with the same settings. Then run the demo tests; the config reuses that server. Leave analytics unset to avoid counting test visits.
 
-These tests use Chromium with phone-sized screens. They do not replace checking Safari on a real iPhone, Android, or [the hosted demo steps](DEMO_HOSTING.md#5-check-the-hosted-copy).
+These tests use Chromium with phone-sized screens. They do not replace checking Safari on a real iPhone, Android, or [the hosted demo checks](../PUBLIC_RELEASE_AUDIT.md#check-the-hosted-demo).
 
 ## Recorded date checks
 

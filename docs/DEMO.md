@@ -133,4 +133,4 @@ These pictures keep their capture dates. Your app continues with the current dat
 
 Use a separate empty [personal installation](INSTALL.md) and a new account. Leave demo mode unset; ordinary setup does not add sample records. Enter the budget above through the forms, then follow the steps. If you start later, move the bill and Plan dates forward too. Keep example money separate from your personal records.
 
-To run a public demo where every visitor gets a copy, see [demo hosting](DEMO_HOSTING.md). People changing date behavior should read [testing](TESTING.md#recorded-date-checks).
+People changing date behavior should read [testing](TESTING.md#recorded-date-checks).
