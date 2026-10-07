@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import { APP_DESCRIPTION, APP_NAME, APP_SHORT_NAME } from "@/lib/app-info";
+import { isDemoMode } from "@/lib/demo/config";
 import "./globals.css";
 
 // Use system fonts (SF Pro on Apple, Segoe on Windows) — matches the iOS design spec.
@@ -31,9 +33,25 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const configuredAnalyticsId = process.env.DEMO_GOOGLE_ANALYTICS_ID;
+  const analyticsId = isDemoMode() && configuredAnalyticsId && /^G-[A-Z0-9]+$/.test(configuredAnalyticsId)
+    ? configuredAnalyticsId
+    : null;
+
   return (
     <html lang="en" className="h-full antialiased">
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {analyticsId && <>
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${analyticsId}`} strategy="afterInteractive" />
+          <Script id="demo-google-analytics" strategy="afterInteractive">{`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+            gtag('config', ${JSON.stringify(analyticsId)});
+          `}</Script>
+        </>}
+      </body>
     </html>
   );
 }

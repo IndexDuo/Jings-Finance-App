@@ -38,6 +38,12 @@ Start demo and Continue demo now open Log. At the owner's follow-up request, the
 
 Production deployment `dpl_ANkvpqYNGB1ShBzUoTKrxjqsgwyr` reached READY with Log entry and an initial full-width banner. The subsequent deployment `dpl_xBhnbQAkBgpxPGwV9zk6YREWWPyp` reached READY with the centered Log-only notice using the normal Turbopack build on Vercel. The canonical demo page and readiness endpoint returned HTTP 200 through Vercel's fetch connection; readiness reported `{"status":"ready"}`. Hosted interactive browser verification remains subject to the network limitation below.
 
+## Optional Google Analytics setup
+
+At the owner's request, configured the public demo's Production environment with Google Analytics measurement ID `G-LS6ZFKLK49`. The shared root layout loads the standard Google tag once after hydration when demo mode and a valid `DEMO_GOOGLE_ANALYTICS_ID` are configured. The template leaves it unset; personal installations do not load it. No custom financial events were added. Preview deployments are not configured for this analytics property.
+
+The local Webpack production build and affected-file lint passed. A mobile-sized Chromium check verified one script load and one configuration call across Demo → Log → Paycheck, with no browser errors. The check stubbed Google's external library to avoid recording local test visits and does not claim report ingestion. An unconfigured local demo omitted the tag. Production deployment `dpl_CuSzDotEyXmKLJDPPZykX2f4gcV2` reached READY; the canonical demo returned HTTP 200 through Vercel's fetch connection with the expected Google script URL and configuration. Google Analytics Realtime ingestion remains to be checked in the owner's account.
+
 ## Pending
 
 1. Finish the hosted visitor checks: edit/reload persistence, a separate visitor copy, and reset. The cloud executor's network proxy denied direct access to the deployment hostname, so automated hosted browser testing is blocked in this session. The Vercel authenticated fetch connection can verify HTTP pages but does not drive interactive browser actions. The owner has verified the first Start my demo flow in their browser.

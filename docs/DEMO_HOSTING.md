@@ -53,6 +53,7 @@ Try adding an expense, editing a Plan, reviewing History, and finishing Home wor
 | `FINANCE_DEMO_MODE` | `true` |
 | `DEMO_TURNSTILE_SITE_KEY` | Turnstile widget’s public site key |
 | `DATABASE_SSL_CA` | Supabase CA certificate PEM, if the server needs that trust certificate |
+| `DEMO_GOOGLE_ANALYTICS_ID` | Optional Google Analytics measurement ID (`G-…`); omit to disable |
 
 Store `DATABASE_URL` as a **Secret** in Vercel. The project URL, public key, demo flag, and public Turnstile key are configuration values. The CA is a public trust certificate and remains server-only here. Changes to these values require a new deployment; browser-facing `NEXT_PUBLIC_` values are built into the client bundle.
 
@@ -73,3 +74,9 @@ The demo stores records in its dedicated Supabase project, scoped to each visito
 Reset signs out the current visitor; starting again creates a new dataset. It does **not** delete the old dataset or disable financial history guards. Anonymous Auth accounts and demo records accumulate, and there is no automatic cleanup in this version. Monitor the demo project’s usage and limits. Do not run Supabase’s generic anonymous-user deletion example as a financial-data cleanup script: this app retains immutable accounting history separately. A retention/cleanup process needs to be designed for the dedicated demo before claiming a deletion schedule.
 
 Visitors should use fictional information. The operator and chosen hosting/database providers administer the demo infrastructure. This differs from the personal self-hosted installation described in the README.
+
+## Optional visitor analytics
+
+Set `DEMO_GOOGLE_ANALYTICS_ID` in the demo's Production environment and redeploy to install the standard Google tag once in the shared root layout. Preview and local deployments can leave it unset. Personal installations do not load this tag, even if the variable is present without demo mode. No custom financial events are sent by the app. Google Analytics enhanced measurement settings control automatic page views and other supported interactions; for navigation between app screens, keep page views based on browser history changes enabled in the web stream's enhanced measurement settings.
+
+After deployment, open the demo and check Google Analytics **Reports → Realtime** for a visit. Ad blockers or browser tracking protection may prevent collection. Standard reports can take longer to update.

@@ -182,6 +182,8 @@ The simplified production deployment `dpl_DedkiSQPMsBy8g1nYD7YDuioniiH` reached 
 
 Follow-up: Start and Continue now open Log. After reviewing the initial full-width banner on mobile, the owner requested a centered notice beneath the Log cards only. It now moves down as spending is added and is absent from the shared app header. Two existing browser cases passed with added checks for Log entry/return, notice placement at 1280px and 320px, movement after adding spending, and absence on Paycheck. A local Webpack production build and affected-file lint passed; this executor blocked Turbopack's compiler socket. A mobile-sized Chromium screenshot was inspected. Hosted build status is recorded in the deployment notes. No financial logic or database configuration changed.
 
+At the owner's request, added opt-in standard Google Analytics to demo mode only, configured through `DEMO_GOOGLE_ANALYTICS_ID`. The supplied measurement ID is set only in the hosted demo's Production environment; the template leaves it unset and personal installations do not load the tag. No custom financial events were added. The local production build and lint passed. A Chromium check with a stubbed Google library verified one load/configuration across Demo → Log → Paycheck; an unconfigured demo omitted the tag. Actual Google Analytics report ingestion must be checked in Realtime; the connected tools do not expose that account.
+
 ## Remaining publication decisions and limitations
 
 - **Personal information:** no known financial information/secrets in publication files. Original license attribution and repository provenance intentionally identify the owner. Review that attribution and the diff before publishing.
