@@ -17,7 +17,7 @@ export async function assertDemoInstallation() {
     const result = await db.execute(sql`SELECT project_url FROM finance_private.demo_installation WHERE project_url = ${projectUrl}`);
     if (result.rows.length !== 1) throw new Error("Missing demo installation");
   } catch (cause) {
-    throw new Error("The demo needs its own fresh database. See owner notes in PUBLIC_RELEASE_AUDIT.md.", { cause });
+    throw new Error("The demo needs its own fresh database installed with db:setup:demo.", { cause });
   }
 }
 

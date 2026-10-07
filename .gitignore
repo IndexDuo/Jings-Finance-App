@@ -159,5 +159,18 @@ supabase/.temp/
 playwright-report/
 test-results/
 .auth/
+.vercel/
+
+# Private keys and local database/export artifacts.
+*.key
+*.pem
+*.p12
+*.pfx
+*.dump
+*.backup
+*.sql.gz
+*.bundle
+backups/
+exports/
 .DS_Store
 Thumbs.db

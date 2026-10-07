@@ -54,9 +54,11 @@ Demo tests use port 3102 and public anonymous sign-in. They do not need a servic
 
 `layout.spec.ts` checks the wide-screen phone suggestion and **Proceed anyway**, including keeping the same copy when continuing. It also checks that Plan date fields fit at small phone widths and keep their values after saving and editing.
 
+`security.spec.ts` checks that signed-out visitors cannot read private records and that another website cannot embed the app in a frame.
+
 For a production browser check, build with the local demo settings and run `npm start -- --hostname 127.0.0.1 --port 3102` with the same settings. Then run the demo tests; the config reuses that server. Leave analytics unset to avoid counting test visits.
 
-These tests use Chromium with phone-sized screens. They do not replace checking Safari on a real iPhone, Android, or [the hosted demo checks](../PUBLIC_RELEASE_AUDIT.md#check-the-hosted-demo).
+These tests use Chromium with phone-sized screens. Also check Safari on a real iPhone and Android. For a hosted demo, check Start, reload after adding a purchase, a separate copy in a private window, Continue, and Start fresh.
 
 ## Recorded date checks
 
@@ -83,4 +85,4 @@ These are recorded results from that check, not a clock-changing feature or a cl
 | New Year | January 1 at 12:30 a.m. UTC is still December 31 in New York. Local midnight starts the January 1 paycheck. |
 | Drafts and past dates | A note open at midnight keeps its text and date. A selected October 31 stays selected when returning November 2. |
 
-Those checks found and fixed stale Today, missed funding on already-open pages, and a pay editor that could overwrite the changed pay amount. The browser tests above cover the refresh signal and saved pay amount. See [the money rules](ACCOUNTING.md) for the current behavior and [the release audit](../PUBLIC_RELEASE_AUDIT.md) for recorded results and limits.
+Those checks found and fixed stale Today, missed funding on already-open pages, and a pay editor that could overwrite the changed pay amount. The browser tests above cover the refresh signal and saved pay amount. See [the money rules](ACCOUNTING.md) for the current behavior.

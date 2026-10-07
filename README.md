@@ -113,7 +113,7 @@ It calculates a planning remainder from the income, expenses, commitments, and s
 
 You host the app and configure your own Supabase project. Your financial records are stored in that project, and the app connects to it for authentication and data storage. Access to financial records is scoped to the signed-in account. Your personal financial records and environment credentials are not part of the code published on GitHub.
 
-There is no built-in financial-data reporting to the app’s author. Your hosting and database providers operate the infrastructure you choose; self-hosting includes configuring access, keeping credentials private, and maintaining backups. See [installation](docs/INSTALL.md) and the [release audit](PUBLIC_RELEASE_AUDIT.md) for setup and verification details.
+There is no built-in financial-data reporting to the app’s author. Your hosting and database providers operate the infrastructure you choose; self-hosting includes configuring access, keeping credentials private, and maintaining backups. See [installation](docs/INSTALL.md) for setup details.
 
 ## Run your own copy
 
@@ -152,7 +152,7 @@ npm run lint
 npm run build
 ```
 
-Browser checks use disposable local services and made-up accounts. See [testing](docs/TESTING.md), including the [recorded date checks](docs/TESTING.md#recorded-date-checks). The [release audit](PUBLIC_RELEASE_AUDIT.md) records completed checks and remaining hosting work.
+Browser checks use disposable local services and made-up accounts. See [testing](docs/TESTING.md), including the [recorded date checks](docs/TESTING.md#recorded-date-checks).
 
 ## License
 

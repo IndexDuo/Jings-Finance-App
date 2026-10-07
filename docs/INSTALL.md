@@ -46,6 +46,8 @@ Leave the demo settings unset for your personal copy. Keep `.env.local` out of G
 
 For `SELF_SIGNED_CERT_IN_CHAIN`, get the project's CA certificate from Supabase's database SSL settings. This certificate tells the app which database server to trust.
 
+The included `supabase-ca.crt` is a public Supabase certificate, not a password or private key. It is safe to share. Keep your database password and `.env.local` private.
+
 For local use, save it as `supabase-ca.crt` beside `package.json`. A connection URL ending in `?sslmode=verify-full` can then end in:
 
 ```text
