@@ -1,25 +1,84 @@
-# Verification
+# Check the app after a code change
 
-Run `npm ci`, `npm test`, `npm run typecheck`, `npm run lint`, and `npm run build`. `npm run test:flows` runs the focused financial flow suite. Database integration tests use isolated PGlite databases and install the same fresh SQL baseline; they do not connect to a real account. Fixtures represent fictional accounts and money.
+This guide is for people changing the app. You do not need to run these checks to use the demo or manage your money. Start with [the user guide](USER_GUIDE.md) for daily use.
 
-## Browser tests
+## Basic checks
 
-Use a **local disposable Supabase instance**, install the baseline into its fresh database, and copy `.env.e2e.example` to `.env.e2e.local`. Populate only local test credentials, use an `@example.test` email, and keep the explicit test-environment marker. Install a browser with `npx playwright install chromium` or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to a system Chromium executable. Run `npm run test:e2e`.
+Use Node 24. Follow [installation](INSTALL.md) for the app's build settings, then run:
 
-The harness refuses non-local Auth/database URLs, refuses credentials matching `.env.local`, and refuses to modify an existing Auth account unless its trusted `app_metadata.finance_e2e` marker is true. Each case creates a new marked fictional account and signs in through the UI. Fixture preparation verifies that the supplied user ID belongs to the marked email. It never deletes retained financial history or disables database guards. Never weaken these checks to point tests at a normal app database.
+```sh
+npm ci
+npm test
+npm run typecheck
+npm run lint
+npm run build
+```
 
-`money-flows.spec.ts` exercises logged bill payments, overages, edits, deletions, future-money recovery, and preservation of completed recovery funding. `fresh-account.spec.ts` uses a separate newly signed-up fictional account and requires a local Mailpit API URL to test actual confirmation/reset email delivery, onboarding, semimonthly scheduling/timezone, spending, bills, automatic saving, covered/uncovered project purchases, completion/release, allocations, actual investing, Settings edits, logout/login, persistence, exports, and mobile/PWA metadata. The email flow is explicitly skipped if its local mailbox is not configured. The mailbox must support Mailpit's `/api/v1/messages` API.
+`npm test` checks the money rules and database constraints using temporary PGlite databases inside the test process. It does not connect to a real account. `npm run test:flows` runs just the financial flow tests.
 
-Browser traces/screenshots, auth state, `.env.e2e.local`, generated output, and dependency caches are ignored by Git. These can contain test sessions and financial rows; do not publish them. HTML reports are local developer output. The application does not need a service-role key; only the local E2E controller uses that key to create and verify its test identity.
+## Test a personal copy in the browser
 
-`settings-timing.spec.ts` covers skipped bills/envelopes during onboarding, immediate budget replacement, main-only account controls, temporary save confirmations, cross-tab protection after spending, and Next paycheck fallback. It also deletes the only ordinary expense through Log, verifies that normal navigation restores This paycheck, applies a previously scheduled bill immediately, and checks that the transaction's deletion audit remains retained.
+Use disposable Supabase/Auth services on your computer, not your hosted or personal database. In a separate setup checkout, point its `.env.local` to those services and run `npm run db:setup` once. Run the tests from your normal app checkout with demo mode unset. Do not replace that checkout's `.env.local` with the test connections; the test settings below are separate.
 
-`calendar-refresh.spec.ts` verifies the browser refresh signal after a client calendar change while keeping authentication on its real clock. An open draft blocks the refresh; dismissing the draft lets focus refresh the server data without creating a transaction. The fresh-account test also verifies that a changed paycheck amount is actually persisted. This client signal test does not advance the server or database clocks. The separate production clock sweep and its financial assertions are documented in `docs/DATE_TESTING.md`.
+1. Copy `.env.e2e.example` to `.env.e2e.local`.
+2. Fill in the local Auth URL, public key, test service-role key, and database URL.
+3. Use an `@example.test` email and keep `E2E_ALLOW_DATA_RESET=finance-app-e2e-only`.
+4. Run `npx playwright install chromium`, or set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to an installed Chromium browser.
+5. Run `npm run test:e2e`.
 
-## Interactive demo tests
+The tests use port 3100. They create marked test accounts and enter changes through the app. They reject hosted URLs, connections matching `.env.local`, and existing accounts without the trusted `app_metadata.finance_e2e` marker. Keep those checks in place.
 
-Use a **second separate disposable local Supabase/Auth database** with Anonymous Sign-Ins enabled and CAPTCHA disabled for local tests. Install it once with `FINANCE_DEMO_MODE=true npm run db:setup:demo`. Copy `.env.demo.e2e.example` to `.env.demo.e2e.local` and set its local public key and connections. Keep the `local-disposable-demo` marker and do not use the personal app’s `.env.local` database. Run `npm run test:demo`.
+| Test file | What it checks |
+| --- | --- |
+| `money-flows.spec.ts` | Bill overages, edits, deletions, recovery, and money already funded. |
+| `fresh-account.spec.ts` | Setup, spending, saving, Projects, releases, assignments, investing, Settings, sign-in, saved records, exports, and phone metadata. |
+| `settings-timing.spec.ts` | Adding skipped bills/envelopes, This paycheck versus Next paycheck, deleting a mistaken entry, another tab's spending, and main-page account controls. |
+| `calendar-refresh.spec.ts` | A new browser day refreshes the app; an open draft delays refresh. It does not advance the server or database clock. |
 
-The harness rejects hosted URLs, ordinary-installation connections, and a database missing the private demo marker. It uses the public anonymous sign-in flow; no service-role key is needed. Its database inspection runs in read-only transactions. Financial changes go through the real UI/server actions, with accounting guards enabled.
+For confirmation and password-reset email tests, set `E2E_MAILPIT_URL` to a local Mailpit inbox. That part of the fresh-account test is skipped if no inbox is configured. Mailpit must support `/api/v1/messages`.
 
-`visitors.spec.ts` verifies independent visitors, reload/continue persistence, blocked cross-owner history/export/project access and mutation replay, owner-only RLS reads, exactly-once bootstrap during simultaneous first visits, completion of the seeded $375 Project release, reconciled funding journals, reset without deletion, and main-only demo session controls. Production verification should point the local test harness at `npm start` on port 3102; the config reuses that running server. This is mobile Chromium in an iPhone-sized viewport, not a physical Safari/Android certification. Hosted Turnstile, deployment routing, and physical Add to Home Screen are checked after publishing a reviewable deployment.
+The service-role key is used only by the local test controller to prepare and check test identities. The app does not need it. Keep local environment files, browser sessions, traces, and reports out of Git.
+
+## Test the interactive demo
+
+Use a second, separate local database and Auth service. Enable anonymous sign-ins and leave CAPTCHA off for these tests.
+
+1. In a separate setup checkout, use the local demo connections and run `FINANCE_DEMO_MODE=true npm run db:setup:demo` once. Keep them separate from the test checkout's `.env.local`.
+2. Copy `.env.demo.e2e.example` to `.env.demo.e2e.local` and fill in the local connections.
+3. Keep `FINANCE_DEMO_TEST_ENV=local-disposable-demo` and configure Chromium as above.
+4. Run `npm run test:demo`.
+
+Demo tests use port 3102 and public anonymous sign-in. They do not need a service-role key. They reject hosted connections, a personal app's connections, and databases without the private demo marker. Database inspection is read-only; money changes go through the app.
+
+`visitors.spec.ts` checks separate visitor copies, Start/Continue opening Log, reload persistence, blocked access to another visitor's records, the centered Log-only notice, reset, and simultaneous first visits. It also checks that finishing Home workspace releases $375 and that the funding totals agree.
+
+For a production browser check, build with the local demo settings and run `npm start -- --hostname 127.0.0.1 --port 3102` with the same settings. Then run the demo tests; the config reuses that server. Leave analytics unset to avoid counting test visits.
+
+These tests use Chromium with phone-sized screens. They do not replace checking Safari on a real iPhone, Android, or [the hosted demo steps](DEMO_HOSTING.md#5-check-the-hosted-copy).
+
+## Recorded date checks
+
+The October 6, 2026 production browser checks used made-up accounts and a disposable local database. The browser, app server, and financial database clocks moved together; sign-in kept its real clock. The test tools stayed outside the app. No hosted records or computer clock were changed.
+
+These are recorded results from that check, not a clock-changing feature or a claim that the full sweep runs with `npm test`.
+
+| Case | Expected result checked |
+| --- | --- |
+| Saved timezone | A Tokyo browser follows the account's New York date. UTC midnight does not start its paycheck early. |
+| Open Log at midnight | October 19 at 11:59 p.m. to October 20 at 12:01 a.m. advances Today and reloads dated records. |
+| Open Paycheck or Plans at payday | A scheduled $100 contribution is recorded once, after earlier requests finish. |
+| Envelope rollover | $120 allowed and $10 spent releases $110 once. $60 allowed and $100 spent carries a $40 shortage. Kept balances and an $80 one-time amount remain. |
+| Weekly refills | Refills follow their seven-day starting date. Ordinary days add no extra money. |
+| Missed paydays | Reopening December 2 catches up October 20, November 3, November 17, and December 1. Saving reaches $300, a $50 recovery is funded once, and $610 of reset leftovers waits to be assigned. |
+| Overdue bills | A November 19 bill keeps its $260 reserve. The app does not invent a payment or repeat funding on refresh. |
+| Recorded investing | An October 20 transfer of $50 keeps its original period and $1,023.33 suggestion after later paydays. |
+| Scheduled settings | October 20 starts the pending $1,700 pay and budget. The earlier paycheck keeps $1,500 income and its $180 unused budget. |
+| Weekly and biweekly dates | A January 31, 2028 reference stays on seven/fourteen-day steps through leap day. |
+| Twice-monthly dates | January 31, February 15, February 29, March 15, and March 31 stay separate paydays. |
+| Monthly dates | January 31 becomes February 29, then March 31 and April 30. |
+| Spring daylight saving | March 14, 2027 at 1:59 a.m. and 3:01 a.m. stays one date, with no extra allowance. |
+| Fall daylight saving | Both November 7, 2027 occurrences of 1:30 a.m. share the same paycheck and allowance. |
+| New Year | January 1 at 12:30 a.m. UTC is still December 31 in New York. Local midnight starts the January 1 paycheck. |
+| Drafts and past dates | A note open at midnight keeps its text and date. A selected October 31 stays selected when returning November 2. |
+
+Those checks found and fixed stale Today, missed funding on already-open pages, and a pay editor that could overwrite the changed pay amount. The browser tests above cover the refresh signal and saved pay amount. See [the money rules](ACCOUNTING.md) for the current behavior and [the release audit](../PUBLIC_RELEASE_AUDIT.md) for recorded results and limits.

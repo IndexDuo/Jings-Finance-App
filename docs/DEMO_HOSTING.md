@@ -1,82 +1,102 @@
-# Host an interactive demo
+# Host a demo
 
-The interactive demo uses the real app and accounting rules. Each visitor gets a verified Supabase anonymous account and their own fictional dataset. Their edits stay with that browser session. A different browser or a reset starts a new copy; there is no shared demo login.
+This guide is for running a public demo with made-up records. To try the existing demo, [open it here](https://jings-finance-demo.vercel.app/demo). You do not need to complete these steps to use it.
 
-Use a **separate Supabase project and separate Vercel project** for the demo. Your personal installation continues to use email/password accounts and does not load fictional starter data.
+Each visitor gets their own copy. For example, one visitor can add a Costco purchase while another still sees the starter records. The demo uses the same app and money rules as a personal installation.
 
-## 1. Create the demo database
+Use a separate Supabase project, Vercel project, and app folder for the demo. Keep your personal database separate.
 
-1. In Supabase, choose **New project** in your organization.
-2. Name it `jings-finance-demo`. Generate and save its database password. Choose a region near your likely visitors.
-3. Leave the optional GitHub connection unconnected; the Vercel project will connect to the app repository.
-4. Keep the Data API enabled. The baseline installs owner-only read policies and revokes browser financial writes. Automatic RLS can stay enabled; the baseline supplies its own policies.
-5. After the project is ready, get its project URL, public publishable/anon key, and pooler connection string from its connection settings. The transaction pooler on port 6543 works for Vercel. Percent-encode the database password in the URL.
-6. In a **separate checkout** of this repository, run `nvm install`, `nvm use`, and `npm ci` with Node 24. Copy `.env.example` to `.env.local` in that checkout.
-7. Set the three connection variables to this new demo project, then add `FINANCE_DEMO_MODE=true`. Never copy your personal database URL into the demo checkout.
-8. Run `npm run db:setup:demo` **once**, against this blank project.
+## 1. Prepare an empty demo project
 
-The command installs the normal baseline plus a private marker matching the demo Auth URL. It refuses any existing public tables and rolls back on failure. A normal `db:setup` database has no marker; enabling the demo flag there will not seed it. Do not rerun either setup command over an existing installation.
+1. Create a new Supabase project, such as `jings-finance-demo`. Save its database password and choose a region near your visitors. Skip the optional GitHub connection.
+2. Keep the Data API enabled. The app's setup command adds its access rules.
+3. In a separate copy of the app folder, install Node 24 and run `npm ci`.
+4. Copy `.env.example` to `.env.local`. Set the new project's URL, public publishable/anon key, and database connection string. Follow [installation](INSTALL.md#3-add-the-connection-settings) for passwords and certificate trust.
+5. Add `FINANCE_DEMO_MODE=true`, then run `npm run db:setup:demo` once.
 
-## 2. Configure visitor sign-in
+Setup creates the tables and a private marker that identifies this database as a demo. It refuses existing app tables. Turning on demo mode for an ordinary installation does not turn its records into demo data. Do not rerun either setup command over an existing database.
 
-1. In Supabase **Authentication → Sign In / Providers**, enable **Anonymous Sign-Ins**.
-2. Disable email/password and other providers for this demo project. No visitor email or password is needed.
-3. Keep manual identity linking disabled. Demo sessions are not intended to become personal accounts.
-4. Before opening the demo to the public, create a [Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) widget for the demo hostname. Copy its secret into Supabase **Authentication → Bot and Abuse Protection** and enable CAPTCHA with Turnstile.
-5. Put the widget’s **public site key** in `DEMO_TURNSTILE_SITE_KEY` in the app environment. The widget appears before Start demo. Its secret belongs in Supabase, not in this repository or the browser.
-6. Keep Supabase’s anonymous sign-in rate limit enabled. Starting fresh creates another Auth identity, so resets count toward that limit too.
+## 2. Allow visitors to start without an account
 
-For localhost verification, you may leave CAPTCHA off in the disposable local Auth service. Public hosting should use it. See [Supabase Anonymous Sign-Ins](https://supabase.com/docs/guides/auth/auth-anonymous) for session and rate-limit behavior.
+Open Supabase **Authentication → Sign In / Providers** and save these settings:
 
-## 3. Try it locally
-
-Run `npm run dev`, then open `http://localhost:3000/demo` and choose **Start demo** to open Log. **Continue demo** also returns to Log.
-
-The fictional account has $2,000 biweekly pay, rent and Internet bills, Groceries/Transport/Fun money envelopes, merchant-style spending descriptions, and two earlier paycheck periods. Plans use distinct icons and colors. Home workspace has $375 left after $125 of purchases; Bike upgrade has a Parts group and a $75 purchase needing future money. Weekend trip starts saving next payday.
-
-Dates are relative to the day the visitor first starts the demo, in America/New_York. The app uses its normal timezone and payday logic after that; returning does not shift dates or reset edits. Opening Paycheck or Plans on later paydays performs the usual eligible funding catch-up.
-
-Try adding an expense, editing a Plan, reviewing History, and finishing Home workspace. Reload to verify your changes remain. Open a private/incognito window to verify another visitor receives the original starter data. Settings contains **Start fresh demo**, replacing the personal app’s password and sign-out controls.
-
-## 4. Connect Vercel
-
-1. In Vercel, choose **Add New → Project** and import your GitHub repository. Name the project `jings-finance-demo` and select **Next.js**.
-2. Set the deployment’s source/production branch to the branch containing these changes, such as `initial-release`. If Vercel asks you to deploy before you can change the production branch, wait to share that first deployment and redeploy the correct branch afterward.
-3. Leave the root directory at the repository root. Use `npm ci` to install, `npm run build` to build, and Node.js **24.x**.
-4. Add these environment variables for Production. If you also want preview deployments to run the demo, configure the same variables for Preview deliberately.
-
-| Variable | Value |
+| Setting | Value |
 | --- | --- |
-| `NEXT_PUBLIC_SUPABASE_URL` | New demo project’s URL |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | New demo project’s public publishable/anon key |
-| `DATABASE_URL` | New demo project’s server-only pooler URL with TLS |
+| Allow new users to sign up | On |
+| Allow anonymous sign-ins | On |
+| Allow manual linking | Off |
+| Email and other sign-in providers | Off |
+
+The top signup switch matters even though visitors do not enter an email. If it is off, Start demo cannot create their copy.
+
+Keep the anonymous signup rate limit enabled. Each fresh demo creates another account, so starting over also counts toward that limit.
+
+### Add a visitor check
+
+[Cloudflare Turnstile](https://www.cloudflare.com/products/turnstile/) helps limit automated signups. It is recommended for a public demo.
+
+1. Create a Turnstile widget for the exact demo hostname.
+2. Put its secret key in Supabase **Authentication → Bot and Abuse Protection**. Enable CAPTCHA and choose Turnstile.
+3. Put its public site key in the app's `DEMO_TURNSTILE_SITE_KEY` setting.
+
+The public key makes the visitor check appear before Start demo. The secret belongs in Supabase. For disposable local testing, leave CAPTCHA off.
+
+## 3. Try your demo locally
+
+Run `npm run dev` and open `http://localhost:3000/demo`. **Start demo** opens Log. **Continue demo** returns to the same copy.
+
+The starter records include $2,000 pay every two weeks, bills, Groceries, Transport, Fun money, earlier purchases, and History. Plans include a trip, a workspace, and a bike upgrade. The workspace has $375 left from $500 saved and $125 spent. The bike has a $75 purchase that still needs future money.
+
+Dates are set relative to the first visit, using New York time. Returning does not move the starting dates or erase edits. Later paydays follow the normal app rules.
+
+Add an expense and reload. Open a private window and check that it gets a separate copy. Try **Start fresh demo** from Demo home or the main Settings page. The centered return link below Log's cards leads back to Demo home.
+
+## 4. Deploy on Vercel
+
+Import the repository into a new Vercel project. Select Next.js and Node **24.x**. Use `npm ci` to install and `npm run build` to build. Choose the branch with the app, such as `initial-release` in this repository.
+
+Add these settings for Production:
+
+| Setting | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Demo project's URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Demo project's public publishable/anon key |
+| `DATABASE_URL` | Demo project's PostgreSQL URL with certificate checks |
 | `FINANCE_DEMO_MODE` | `true` |
-| `DEMO_TURNSTILE_SITE_KEY` | Turnstile widget’s public site key |
-| `DATABASE_SSL_CA` | Supabase CA certificate PEM, if the server needs that trust certificate |
-| `DEMO_GOOGLE_ANALYTICS_ID` | Optional Google Analytics measurement ID (`G-…`); omit to disable |
+| `DATABASE_SSL_CA` | Full CA certificate text, if needed |
+| `DEMO_TURNSTILE_SITE_KEY` | Public Turnstile site key, when enabled |
+| `DEMO_GOOGLE_ANALYTICS_ID` | Optional Google Analytics ID, such as `G-…` |
 
-Store `DATABASE_URL` as a **Secret** in Vercel. The project URL, public key, demo flag, and public Turnstile key are configuration values. The CA is a public trust certificate and remains server-only here. Changes to these values require a new deployment; browser-facing `NEXT_PUBLIC_` values are built into the client bundle.
+Store `DATABASE_URL` as a Secret. The other values are configuration; the certificate and measurement ID are not passwords. Redeploy after changing settings. Configure Preview separately if you want demo previews too.
 
-If you downloaded `supabase-ca.crt`, open it and copy the entire `BEGIN CERTIFICATE` / `END CERTIFICATE` block into the multiline `DATABASE_SSL_CA` value. This avoids relying on a certificate file on your own computer. The connection helper uses that CA with certificate and hostname verification enabled. Remove a local `sslrootcert=./supabase-ca.crt` reference from the hosted URL; it is not a deployed file.
+In Supabase's Auth URL settings, set the Site URL to the demo's HTTPS address. Anonymous sign-in does not need an email callback. Add the deployed hostname to Turnstile if you enabled it.
 
-5. Deploy the selected branch. In Supabase Auth URL configuration, set the Site URL to the resulting HTTPS demo origin. Anonymous sign-in does not need an email callback. Allow only intended callback origins if you later enable providers that use them.
-6. Add the exact deployed hostname to the Turnstile widget and verify its visitor check loads. Configure any custom domain in both places before sharing it.
-7. Test one normal browser and one private window on the hosted site, as in step 3. Also try Add to Home Screen on iPhone. Add the verified live URL to the README only after this works.
+In Vercel's Deployment Protection settings, allow public Production access if visitors should not need a Vercel login. Preview deployments can stay protected. Connecting Git in the existing project's settings lets later pushes deploy automatically; without that connection, a Git push alone does not update the hosted app.
 
-The demo-only `/api/demo-health` endpoint verifies that the server can read the matching private demo marker. It returns HTTP 200 with `{"status":"ready"}`, or HTTP 503 with `{"status":"unavailable"}`. It returns no visitor data or credentials and is unavailable on personal installations. With Vercel protection enabled, access it through your authorized Vercel session. An unavailable response means the database connection or marker needs checking; runtime logs report only a bounded error code. For `SELF_SIGNED_CERT_IN_CHAIN`, configure the trusted `DATABASE_SSL_CA` certificate and redeploy rather than disabling TLS verification. This readiness check does not replace testing Start demo, persistence, or visitor isolation.
+## 5. Check the hosted copy
 
-Git pushes to a Vercel-linked deployment branch can trigger new deployments. Connecting GitHub is part of the Vercel project setup; a separate Supabase GitHub integration is not required.
+Try these in your browser:
 
-## Visitor persistence and operation
+1. Start a demo and confirm Log opens with the example records.
+2. Add a purchase and reload. It should remain.
+3. Open a private window. It should get its own starter records.
+4. Return to Demo home and choose Continue. Your edits should remain.
+5. Start fresh. You should receive a new copy.
 
-The demo stores records in its dedicated Supabase project, scoped to each visitor’s verified ID. It is not browser-only storage. Session cookies keep access in the same browser; a cookie expiration that cannot refresh, clearing site data, reset, or a different device loses access to that copy. There is no cross-device login or recovery for anonymous demos.
+Try Add to Home Screen on iPhone too. Local browser tests do not prove that every hosted browser behaves the same.
 
-Reset signs out the current visitor; starting again creates a new dataset. It does **not** delete the old dataset or disable financial history guards. Anonymous Auth accounts and demo records accumulate, and there is no automatic cleanup in this version. Monitor the demo project’s usage and limits. Do not run Supabase’s generic anonymous-user deletion example as a financial-data cleanup script: this app retains immutable accounting history separately. A retention/cleanup process needs to be designed for the dedicated demo before claiming a deletion schedule.
+For a quick database check, open `/api/demo-health` on the demo site. `{"status":"ready"}` means the server can read its demo marker. It does not prove the visitor steps above work. If it reports unavailable, check the database URL and certificate. See [the release audit](../PUBLIC_RELEASE_AUDIT.md#current-demo-status) for the existing demo's latest recorded status.
 
-Visitors should use fictional information. The operator and chosen hosting/database providers administer the demo infrastructure. This differs from the personal self-hosted installation described in the README.
+## What happens to visitor records
 
-## Optional visitor analytics
+Records are stored in the demo's Supabase project, under each visitor's account. The browser keeps the session that gives access to that copy.
 
-Set `DEMO_GOOGLE_ANALYTICS_ID` in the demo's Production environment and redeploy to install the standard Google tag once in the shared root layout. Preview and local deployments can leave it unset. Personal installations do not load this tag, even if the variable is present without demo mode. No custom financial events are sent by the app. Google Analytics enhanced measurement settings control automatic page views and other supported interactions; for navigation between app screens, keep page views based on browser history changes enabled in the web stream's enhanced measurement settings.
+Clearing browser data, using another browser, or losing the session can lose access to the copy. There is no email login or recovery for it. Reset starts a new copy; it does not delete the old records. Accounts and records can build up over time. Automatic cleanup is not included, so monitor project usage. Deleting Auth accounts alone is not a complete cleanup plan for retained financial records.
 
-After deployment, open the demo and check Google Analytics **Reports → Realtime** for a visit. Ad blockers or browser tracking protection may prevent collection. Standard reports can take longer to update.
+Use made-up information. The demo operator and hosting providers manage this database; it is separate from a personal copy you host yourself.
+
+## Optional Google Analytics
+
+Set `DEMO_GOOGLE_ANALYTICS_ID` in Production and redeploy. The Google tag loads once across demo screens. Leaving the setting empty disables it, and personal mode does not load it. The app adds no custom events containing financial records. Google's enhanced measurement settings control automatic page views and supported interactions.
+
+In the Google Analytics web stream, keep page views based on browser history changes enabled to count moves between app screens. Open the demo, browse a few screens, then check **Reports → Realtime**. Ad blockers can stop collection, and standard reports take longer to update.

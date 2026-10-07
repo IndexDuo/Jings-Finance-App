@@ -1,67 +1,80 @@
 # Using Jing’s Finance App
 
-Jing’s Finance App helps you plan each paycheck and record how you use it. Enter purchases, income, bill payments, and transfers manually. The app uses those records to distinguish spending, reserved money, future funding needs, and money available to assign.
+Use Log to record what happened. Use Paycheck to see where your money needs to go and what is left to invest. You enter the information and make payments yourself; the app does not read your bank account or move money.
 
-## Start with your current paycheck
+## Start here
 
-Create an account, confirm your email, and sign in. During setup:
+[Try the demo](https://jings-finance-demo.vercel.app/demo) with made-up money. **Start demo** opens Log. **Continue demo** opens your same copy. **Start fresh demo** starts over; you cannot return to the old copy afterward. Other visitors get their own copies.
 
-1. Enter your take-home amount, pay frequency, and a recent payday. Semimonthly pay uses two calendar days each month.
-2. Check the timezone. Your saved timezone determines Today, transaction dates, pay periods, and due dates.
-3. Add the recurring bills you want included in planning, with their amount and next due date.
-4. Add spending envelopes. Use Variable for everyday needs and Guilt-free for discretionary spending. Choose a weekly or monthly amount and what happens to leftovers.
-5. Finish setup and review Paycheck before recording financial activity.
+In your personal copy, finish setup with take-home pay, a recent payday, pay schedule, and timezone. Add bills and envelopes, then review Paycheck. Earlier purchases and bank balances are not imported.
 
-Bills and envelopes are optional during setup. You can add them in Settings afterward. While the current paycheck is unused, changes default to This paycheck and replace its budget. Once financial activity protects that paycheck, changes start on the next paycheck. You can also deliberately choose Next paycheck while the current one is unused. Pay and schedule edits always start on a future eligible payday.
+## What the names mean
 
-If you accidentally log an ordinary expense or income entry, deleting it can restore immediate budget editing when no other protected activity remains. Payments, allocations, saving, recovery funding, and recorded investments have their own retained history and can continue to protect the paycheck.
+| Name | Meaning |
+| --- | --- |
+| Envelope | Money for a type of spending, such as Groceries or Fun money. |
+| Plan | Saving for something, or funding an earlier expense. A trip and a surprise bill can both have a Plan. |
+| Project | Related purchases under a Plan, such as bike parts. |
+| Piggy reserve | Money you assign for later spending. |
+| Recovery | Replacing money used for an expense you had not planned for. |
 
-The opening paycheck is a planning allowance from when tracking starts. Setup does not import bank balances, earlier purchases, or earlier bill reserves. For a Plan, Already saved records money you have already set aside for that purpose.
+Funded means money has already been set aside, rather than only planned.
 
-## Record the day in Log
+## Log a purchase
 
-Choose Today or a historical date, then use the plus button to add an entry. Select the category, enter the amount, choose its bill/envelope/Plan when applicable, and save. Use any helpful description, such as Costco or dinner with mom; the selected envelope already supplies the spending category. Review the formatted amount before saving.
+1. Choose the date in Log and tap **+**.
+2. Choose the kind of entry, enter the amount, and select its envelope, bill, or Plan.
+3. Add a description, check the displayed amount, and save.
 
-For a recurring bill, select the saved bill and confirm its actual payment. A payment above the saved budget creates recovery for the excess. Confirming payments keeps the bill's next due date and reserve calculation tied to actual occurrences.
+Use a description you will recognize, such as Costco or dinner with mom. The envelope already tells the app what kind of spending it is. **Variable** is for usual costs such as groceries; **Guilt-free** is for spending such as eating out or hobbies.
 
-Payment and funding details let you record cash/bank or credit-card spending and whether it is already covered or needs future money. An unplanned expense that needs future money creates a payoff or recovery Plan. Enter a date for restoring that money or paying the card.
+For a bill, choose the saved bill and confirm what you paid. If you planned $900 but paid $950, the uncovered $50 becomes recovery starting next paycheck. The payment options also let you record credit-card spending or an expense that needs future money.
 
-Use Income for extra income and Notes for reminders. Extra income and released money can be assigned on Paycheck. Editing a record preserves financial history; deleting a purchase belonging to a finished Project can be blocked to preserve its completed accounting.
+Use **Income** for extra money received and **Notes** for reminders.
 
 ## Read Paycheck
 
-The current breakdown reserves bills, spending envelopes, recovery, and scheduled Plan saving before calculating the investment suggestion. Open More details to see the additional reserves. A shortfall is shown when the paycheck cannot cover the plan.
+The breakdown accounts for bills, envelopes, earlier expenses that still need money, and Plan saving before showing what is left to invest. **More details** shows the extra rows. A shortfall means the paycheck cannot cover the plan.
 
-Guilt-free available now reflects funded discretionary envelopes and assigned Piggy reserve. It can differ from the current paycheck's reserved amount because accumulating envelopes carry balances forward and spending reduces what remains.
+**Guilt-free available now** is funded spending money still available. It includes assigned Piggy reserve and can include leftovers from an earlier paycheck.
 
-Reset envelopes release positive leftovers at a new paycheck boundary. Accumulating envelopes keep leftovers. A deficit consumes later funding. Weekly accumulating envelopes refill on their seven-day anchor, which can differ from payday.
+If the app suggests investing $500 but you transfer $400, choose **Record** under Investment and enter $400. The app keeps the suggestion and actual transfer separate.
 
-The Next paycheck card shows the upcoming date and the pay amount effective then. History keeps earlier paychecks tied to the settings and records that applied to them.
+Use **History** for past paychecks or **By month** for a month's income and spending.
 
-## Save for Plans and organize Projects
+## Save and track bigger purchases
 
-Create a Plan with a target amount and date. Enter money already saved only when it is already set aside. Save from paychecks adds scheduled saving to paycheck planning; choose its starting paycheck. Review the saving pace shown on the Plan.
+Create a Plan with an amount and target date. Enter **Already saved** only for money already set aside. Turn on **Save from paychecks** and choose when to start.
 
-Open Appearance in the Plan form to choose an icon and color so you can recognize each Plan at a glance. Fully funded Plans use a green progress accent.
+For example, $1,200 still needed over eight eligible paychecks gives a $150 saving pace. Funding depends on what remains after earlier needs. Open Paycheck or Plans to record eligible funding, including missed paydays. Choose an icon and color under **Appearance** to tell Plans apart.
 
-In Projects, choose Add project and select a Plan. Record purchases there to keep their spending together. Available Plan savings cover a purchase up to the funded amount. The purchase form shows any portion that will need future paychecks.
+For related purchases, use **Add project** in Projects and select the Plan. Use **Organize** for groups such as Parts or Equipment. Each purchase shows what saved money covers and what still needs future paychecks.
 
-Use Organize to create specific purchase groups, such as Parts or Equipment, then select the group when adding a purchase. You can also move existing purchases between groups.
+## Assign money left over
 
-When the Project is done, choose Finish project and review its totals. Finishing closes spending and releases only proven unused savings. An uncovered balance continues to need future funding after completion.
+Choose **Finish project** when done and review its totals. Only unused funded savings are released; uncovered purchases still need money.
 
-## Assign released money and record investing
+Suppose $375 is left. Open the money waiting to be assigned on Paycheck. You could put $125 in Piggy reserve and $250 toward investment, or choose an envelope such as Groceries. Review and confirm the split.
 
-On Paycheck, open the money waiting to be assigned. Choose the destinations and amounts, review the split, then confirm. Money can go to Plans, envelopes, Piggy reserve, recovery, or investment as offered by the current allocation form. Each source can be assigned only once.
+Extra income and released envelope leftovers also wait for you to choose where they go.
 
-Use Record under Investment after making a real transfer. Enter the amount you actually transferred. The suggestion and the actual transfer remain separate; if the transfer is higher than the suggestion, review the offered funding source and its effect on future paychecks.
+## Change bills and envelopes
 
-## Daily use and dates
+You can skip them during setup and add them later in Settings.
 
-Open Log to enter activity and Paycheck to review available money. Paycheck and Plans synchronize eligible scheduled funding when those views are used, including catch-up after missed paydays. Repeated visits do not create a second grant for the same event.
+- **This paycheck** updates an unused paycheck now.
+- **Next paycheck** keeps the current budget and starts the change on the next payday.
 
-An open page checks for a new day once per minute and when you return to the window. Today follows the new date; a selected historical day stays selected. An open dialog postpones that refresh so its draft keeps its date and text. All calendar boundaries follow your saved timezone, including daylight saving and month ends.
+Once money has been spent, paid, assigned, funded, or invested, changes start next paycheck. Pay and schedule edits also start on a future payday.
 
-The app needs a network connection. Install/Add to Home Screen is available on supported browsers when served over HTTPS. Settings contains your pay, bills, envelopes, timezone editing, password reset, and sign-out; the account controls appear on its main page.
+Logged an ordinary expense or income by mistake? Delete it in Log and return to Settings. This paycheck becomes available if no other activity protects it. Deleting an entry does not undo separate payments, funding, or investment records. Notes alone do not lock the budget.
 
-See [the fictional walkthrough](DEMO.md) for an example, [installation](INSTALL.md) for hosting and email configuration, and [accounting rules](ACCOUNTING.md) for exact calendar and funding conventions.
+Password reset and sign-out are on the main Settings page. The demo has **Start fresh demo** instead.
+
+## When the date changes
+
+Your timezone decides Today and payday. An open form keeps its draft and date; a past day you selected stays selected.
+
+At a new paycheck, envelopes set to release leftovers make their positive leftover money available to assign. Envelopes set to keep leftovers carry them forward. A negative balance still needs later money. Weekly envelopes that keep leftovers refill on their own seven-day schedule.
+
+See [the pictures](DEMO.md) for examples, [the money rules](ACCOUNTING.md) for more detail, or [installation](INSTALL.md) to host your own copy.

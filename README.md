@@ -135,7 +135,7 @@ npm run lint
 npm run build
 ```
 
-Browser verification uses disposable localhost services and fictional identities. See [testing](docs/TESTING.md) and [calendar verification](docs/DATE_TESTING.md). The [release audit](PUBLIC_RELEASE_AUDIT.md) records the completed checks and remaining hosting limitations.
+Browser checks use disposable local services and made-up accounts. See [testing](docs/TESTING.md), including the [recorded date checks](docs/TESTING.md#recorded-date-checks). The [release audit](PUBLIC_RELEASE_AUDIT.md) records completed checks and remaining hosting work.
 
 ## License
 
