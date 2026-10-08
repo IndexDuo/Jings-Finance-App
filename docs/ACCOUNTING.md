@@ -79,7 +79,9 @@ Plan saving divides the remaining amount for future purchases across eligible pa
 
 Opening Paycheck or Plans records eligible saving and recovery funding. Missed paydays catch up. Reopening the page does not fund the same event again.
 
-Project purchases use proven available savings. Suppose a Project has $500 saved and you spend $125: $375 remains. If a purchase has no saved money behind it, its need for future money stays attached to it. Later savings or editing the purchase do not automatically change how it was originally funded.
+Project purchases use proven available savings. Suppose a Project has $500 saved and you spend $125: $375 remains. If a purchase has no saved money behind it, its need for future money stays attached to it.
+
+Money added to a Plan covers its unfunded purchases first, oldest first, then saves the rest. For example, a bike rack needs $75. Adding $100 covers the rack and leaves $25 saved for another purchase. This applies to manual savings, Piggy transfers, and assigned leftover money. Opening Plans or Paycheck also applies existing unused savings. Each move has matching records: money leaves the Plan’s savings and covers the purchase. The original purchase stays unchanged, and future paychecks only cover what remains. Money already used cannot be removed through a savings correction.
 
 Finishing a Project stops new purchases and releases only unused funded savings. Any uncovered purchase balance remains due. The release can be assigned once to the destinations offered by the app, such as an envelope, another Plan, Piggy reserve, recovery, or investment.
 

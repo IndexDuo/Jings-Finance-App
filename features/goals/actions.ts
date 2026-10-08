@@ -29,6 +29,7 @@ import { parseLocalIsoDate } from "@/lib/dates";
 import { proratePerPaycheck, type Period } from "@/features/paycheck/lib/proration";
 import { computeUnplannedCashCents } from "@/features/paycheck/lib/cash-adjustments";
 import { loadGoalPurchaseSummaryById } from "@/features/goals/server";
+import { fundUncoveredPlanPurchases } from "./purchase-recovery";
 
 type MutateResult = { ok: true } | { ok: false; error: string };
 type GoalSavingSyncResult =
@@ -361,13 +362,13 @@ async function reconcileAutomaticGoalSavings(userId: string): Promise<number> {
             .where(and(eq(schema.goals.id, row.id), eq(schema.goals.userId, userId)));
         }
 
-        return true;
+        return amountCents > 0 ? await fundUncoveredPlanPurchases(tx, userId, row.id) : 0;
       });
-      if (!credited) continue;
+      if (credited === false) continue;
 
       creditedPaydays.add(transferKey);
       if (amountCents <= 0) continue;
-      row.workingCurrentCents += amountCents;
+      row.workingCurrentCents += amountCents - credited;
       availableCents -= amountCents;
       creditedCents += amountCents;
     }
@@ -555,6 +556,7 @@ export async function updateGoalFunding(
       const [goal] = await tx.select().from(schema.goals)
         .where(and(eq(schema.goals.id, id), eq(schema.goals.userId, userId))).for("update");
       if (!goal) throw new PublicActionError("Unknown plan");
+      if (goal.archivedAt) throw new PublicActionError("Choose an active plan");
       const [manualTotal] = await tx.select({
         cents: sql<number>`coalesce(sum(${schema.goalFundingEvents.amountCents}), 0)`,
       }).from(schema.goalFundingEvents).where(and(
@@ -572,6 +574,7 @@ export async function updateGoalFunding(
       });
       await tx.update(schema.goals).set({ currentCents: goal.currentCents + adjustmentCents })
         .where(and(eq(schema.goals.id, id), eq(schema.goals.userId, userId)));
+      if (adjustmentCents > 0) await fundUncoveredPlanPurchases(tx, userId, id);
     });
   } catch (error) {
     return { ok: false, error: actionError(error, "Could not update savings") };
@@ -622,6 +625,7 @@ export async function recoverGoalFunding(
         currentCents: sql`${schema.goals.currentCents} + ${parsed.data.amountCents}`,
       })
       .where(and(eq(schema.goals.id, id), eq(schema.goals.userId, userId)));
+    await fundUncoveredPlanPurchases(tx, userId, id);
   });
 
   revalidatePlanMoneyFlow();

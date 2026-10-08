@@ -1,5 +1,7 @@
 "use server";
 
+import { reconcileUncoveredPlanPurchases } from "@/features/goals/purchase-recovery";
+
 import { PublicActionError, actionError } from "@/lib/action-error";
 
 
@@ -259,13 +261,19 @@ export async function syncPaycheckFunding(): Promise<
   | { ok: true; changedCents: number }
   | { ok: false; error: string }
 > {
+  const userId = await requireUserId();
+  if (!userId) return { ok: false, error: "Not signed in" };
+  const usedSavingsCents = await reconcileUncoveredPlanPurchases(userId);
+  if (usedSavingsCents > 0) {
+    for (const path of ["/goals", "/projects", "/paycheck"]) revalidatePath(path, "layout");
+  }
   const priorityResult = await syncCreditCardFunding();
   if (!priorityResult.ok) return priorityResult;
   const goalResult = await syncAutomaticGoalSavings();
   if (!goalResult.ok) return goalResult;
   return {
     ok: true,
-    changedCents: priorityResult.fundedCents + goalResult.creditedCents,
+    changedCents: usedSavingsCents + priorityResult.fundedCents + goalResult.creditedCents,
   };
 }
 

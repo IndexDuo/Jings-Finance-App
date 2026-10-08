@@ -17,6 +17,7 @@ import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { todayInUserTz } from "@/lib/dates";
 import { loadAllocationSources, lockAllocationOwner } from "./server";
 import { splitAllocationSources } from "./lib/sources";
+import { fundUncoveredPlanPurchases } from "@/features/goals/purchase-recovery";
 
 type MutateResult = { ok: true } | { ok: false; error: string };
 
@@ -171,6 +172,9 @@ export async function recordAllocations(input: unknown): Promise<MutateResult> {
                 } else if (targetKind === "piggy") {
                     await tx.update(schema.settings).set({ piggyBankCents: sql`${schema.settings.piggyBankCents} + ${amountCents}` }).where(eq(schema.settings.userId, userId));
                 }
+            }
+            for (const goalId of new Set(movements.flatMap(m => m.goalId && m.amountCents > 0 ? [m.goalId] : []))) {
+                await fundUncoveredPlanPurchases(tx, userId, goalId);
             }
         });
     } catch (error) {
@@ -475,7 +479,35 @@ export async function updateAllocations(input: unknown): Promise<MutateResult> {
     }
     const targetPeriodStartIso = (await loadFinancialConfiguration(userId)).period(periodStartIso).next;
 
+    try {
     await db.transaction(async (tx) => {
+        await lockAllocationOwner(tx, userId);
+        const freshAllocations = await tx.select().from(schema.paycheckAllocations).where(and(
+            eq(schema.paycheckAllocations.userId, userId), eq(schema.paycheckAllocations.periodStartDate, periodStartIso),
+            isNull(schema.paycheckAllocations.incomeTransactionId), isNull(schema.paycheckAllocations.releasedPlanId),
+            isNull(schema.paycheckAllocations.releasedBillId),
+        ));
+        if (freshAllocations.length !== existingRows.length || freshAllocations.some(row =>
+            !existingRows.some(old => old.id === row.id && old.amountCents === row.amountCents)))
+            throw new PublicActionError("The assignments changed. Close this sheet and review them again.");
+        for (const [goalId, delta] of goalDeltas) {
+            const [goal] = await tx.select().from(schema.goals).where(and(
+                eq(schema.goals.id, goalId), eq(schema.goals.userId, userId),
+            )).for("update");
+            if (!goal || goal.currentCents + delta < 0)
+                throw new PublicActionError("Money already used by this plan cannot be reassigned.");
+            if (delta > 0 && goal.archivedAt) throw new PublicActionError("Choose an active plan");
+        }
+        for (const [commitmentId] of recoveryDeltas) {
+            const [fresh] = await tx.select().from(schema.creditCardCommitments).where(and(
+                eq(schema.creditCardCommitments.userId, userId), eq(schema.creditCardCommitments.id, commitmentId),
+            )).for("update");
+            if (!fresh || fresh.fundedCents !== updateRecoveryById.get(commitmentId)?.fundedCents)
+                throw new PublicActionError("Purchase funding changed. Close this sheet and review it again.");
+        }
+        const [freshSettings] = await tx.select().from(schema.settings).where(eq(schema.settings.userId, userId));
+        if (!freshSettings || freshSettings.piggyBankCents + piggyDelta < 0)
+            throw new PublicActionError("That money is no longer available in Piggy reserve.");
         await tx
             .delete(schema.paycheckAllocations)
             .where(
@@ -575,7 +607,13 @@ export async function updateAllocations(input: unknown): Promise<MutateResult> {
                 })
                 .where(eq(schema.settings.userId, userId));
         }
+        for (const [goalId, delta] of goalDeltas) {
+            if (delta > 0) await fundUncoveredPlanPurchases(tx, userId, goalId);
+        }
     });
+    } catch (error) {
+        return { ok: false, error: actionError(error, "Could not update assignments") };
+    }
 
     revalidatePath("/paycheck");
     revalidatePath("/goals");
@@ -613,6 +651,11 @@ export async function transferPiggyToGoal(
 
     try {
         await db.transaction(async (tx) => {
+            await lockAllocationOwner(tx, userId);
+            const [activeGoal] = await tx.select({ id: schema.goals.id }).from(schema.goals).where(and(
+                eq(schema.goals.userId, userId), eq(schema.goals.id, goalId), isNull(schema.goals.archivedAt),
+            )).for("update");
+            if (!activeGoal) throw new PublicActionError("Choose an active plan");
             const [settings] = await tx
                 .select({ piggyBankCents: schema.settings.piggyBankCents })
                 .from(schema.settings)
@@ -641,6 +684,7 @@ export async function transferPiggyToGoal(
                     currentCents: sql`${schema.goals.currentCents} + ${amountCents}`,
                 })
                 .where(and(eq(schema.goals.id, goalId), eq(schema.goals.userId, userId)));
+            await fundUncoveredPlanPurchases(tx, userId, goalId);
         });
     } catch (error) {
         return {

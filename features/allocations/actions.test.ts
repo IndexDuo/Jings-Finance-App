@@ -15,7 +15,7 @@ vi.mock("@/lib/db", async () => {
   return { db: drizzle(state.pg, { schema }), schema };
 });
 import { db, schema } from "@/lib/db";
-import { recordAllocations } from "@/features/allocations/actions";
+import { recordAllocations, transferPiggyToGoal, updateAllocations } from "@/features/allocations/actions";
 import { addTransaction, updateTransaction, deleteTransaction } from "@/features/log/actions";
 import { loadAllocationSources, loadAssignedInvestments } from "@/features/allocations/server";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
@@ -25,7 +25,8 @@ import { loadReconciliationReport } from "@/features/reconciliation/server";
 import { loadFinancialHistory } from "@/features/reconciliation/history";
 import { completeOnboarding } from "@/features/onboarding/actions";
 import { updateGoalFunding, updateGoal, archiveGoal, permanentlyDeleteGoal, syncAutomaticGoalSavings } from "@/features/goals/actions";
-import { syncCreditCardFunding } from "@/features/credit-card/actions";
+import { syncCreditCardFunding, syncPaycheckFunding } from "@/features/credit-card/actions";
+import { reconcileUncoveredPlanPurchases } from "@/features/goals/purchase-recovery";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
 import { confirmFixedExpensePayment } from "@/features/fixed-expenses/actions";
 import { completePlan, completionPreviewKey } from "@/features/goals/complete-plan";
@@ -39,7 +40,7 @@ beforeAll(async () => {
 }, 30000);
 beforeEach(async () => {
   state.today = "2031-03-28";
-  await state.pg.exec("TRUNCATE public.users CASCADE");
+  await state.pg.exec("RESET request.jwt.claim.sub; TRUNCATE public.users CASCADE");
   await db.insert(schema.users).values({ id: state.user, email: "income-flow@example.test" });
   await db.insert(schema.settings).values({ userId: state.user, takeHomeCents: 150000, payAnchorDate: "2031-03-14", trackingStartDate: "2031-03-28" });
   await db.insert(schema.transactions).values({ id: incomeId, userId: state.user, date: "2031-03-17", amountCents: 6000, category: "income", note: "Fictional cash back" });
@@ -772,4 +773,180 @@ it.each(["weekly", "biweekly", "semimonthly", "monthly"] as const)("fresh fictio
   const snapshot = await loadFinancialSnapshot({userId:state.user,asOfDate:next});
   expect(snapshot.completedPeriods[0].periodStartDate).toBe(state.today);
   expect(snapshot.completedPeriods[0].releasedCents).toBe(Math.round(24000*12/annual));
+});
+
+describe("Plan savings cover existing purchases before new saving", () => {
+  async function bike(userId = state.user, date = state.today) {
+    const [goal] = await db.insert(schema.goals).values({ userId, name: "Bike upgrade", targetCents: 40000,
+      targetDate: "2031-06-01", storageType: "hysa" }).returning();
+    const [purchase] = await db.insert(schema.transactions).values({ userId, goalId: goal.id, date,
+      note: "Bike rack", amountCents: -7500, category: "variable", fundingStatus: "needs-future-money", planFundingCents: 0 }).returning();
+    const [recovery] = await db.insert(schema.creditCardCommitments).values({ userId, sourceTransactionId: purchase.id,
+      name: "Bike upgrade - Bike rack", originalCents: 7500, startDate: state.today, dueDate: "2031-04-11" }).returning();
+    return { goal, purchase, recovery };
+  }
+  async function balances(goalId: string) {
+    const plan = (await loadPlanSummaries(state.user)).find(g => g.id === goalId)!;
+    const report = await loadReconciliationReport(state.user, state.today);
+    expect(report.mismatchCount).toBe(0);
+    expect(report.issues).toEqual([]);
+    return plan.fundingSummary;
+  }
+  it("covers a $75 purchase, saves $25, preserves the purchase and protects consumed money", async () => {
+    const { goal, purchase } = await bike();
+    expect(await updateGoalFunding(goal.id, { manualCents: 10000 })).toEqual({ ok: true });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 7500, futureSavedCents: 2500, totalFundedCents: 10000 });
+    expect((await db.select().from(schema.transactions)).find(t => t.id === purchase.id)).toEqual(purchase);
+    const before = await db.select().from(schema.goalFundingEvents);
+    expect(await updateGoalFunding(goal.id, { manualCents: 10000 })).toEqual({ ok: true });
+    expect(await db.select().from(schema.goalFundingEvents)).toEqual(before);
+    expect(await updateGoalFunding(goal.id, { manualCents: 5000 })).toMatchObject({ ok: false });
+    expect(await db.select().from(schema.goalFundingEvents)).toEqual(before);
+    expect(await updateGoalFunding(goal.id, { manualCents: 7500 })).toEqual({ ok: true });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 7500, futureSavedCents: 0, totalFundedCents: 7500 });
+    expect(await deleteTransaction({ id: purchase.id })).toMatchObject({ ok: false });
+    state.today = "2031-04-11";
+    expect(await syncCreditCardFunding()).toMatchObject({ ok: true, fundedCents: 0 });
+    expect(await syncPaycheckFunding()).toMatchObject({ ok: true, changedCents: 0 });
+    expect((await db.select().from(schema.creditCardFundingEvents)).reduce((sum, e) => sum + e.amountCents, 0)).toBe(7500);
+  });
+  it("puts a partial contribution into the purchase and finishes it with a later contribution", async () => {
+    const { goal } = await bike();
+    expect(await updateGoalFunding(goal.id, { manualCents: 3000 })).toEqual({ ok: true });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 3000, futureSavedCents: 0, recoveryRemainingCents: 4500 });
+    expect(await updateGoalFunding(goal.id, { manualCents: 10000 })).toEqual({ ok: true });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 7500, futureSavedCents: 2500 });
+  });
+  it("uses an income assignment once without also leaving it available for new purchases", async () => {
+    const { goal } = await bike();
+    const input = payload([{ targetKind: "goal", goalId: goal.id, amountCents: 6000 }]);
+    expect(await recordAllocations(input)).toEqual({ ok: true });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 6000, futureSavedCents: 0 });
+    expect(await recordAllocations(input)).toMatchObject({ ok: false });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 6000, futureSavedCents: 0 });
+  });
+  it("honors a direct purchase assignment in the same form before using its Plan savings", async () => {
+    const { goal, recovery } = await bike();
+    expect(await recordAllocations(payload([
+      { targetKind: "goal", goalId: goal.id, amountCents: 4000 },
+      { targetKind: "recovery", commitmentId: recovery.id, amountCents: 2000 },
+    ]))).toEqual({ ok: true });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 6000, futureSavedCents: 0 });
+  });
+  it("covers the purchase from a finished project's leftover without duplicating its release", async () => {
+    const { goal } = await bike();
+    const [source] = await db.insert(schema.goals).values({ userId: state.user, name: "Finished workspace",
+      targetCents: 10000, targetDate: state.today, storageType: "hysa" }).returning();
+    expect(await updateGoalFunding(source.id, { manualCents: 10000 })).toEqual({ ok: true });
+    const preview = (await loadPlanCompletionPreview(state.user, source.id))!;
+    await completePlan(state.user, source.id, completionPreviewKey(preview), state.today);
+    const available = await loadAllocationSources(state.user, state.today);
+    const release = available.sources.find(s => s.kind === "plan-release")!;
+    const input = { periodStartIso: available.currentPayIso, sources: [{ key: release.key, amountCents: release.amountCents }],
+      entries: [{ targetKind: "goal", goalId: goal.id, amountCents: 10000 }] };
+    expect(await recordAllocations(input)).toEqual({ ok: true });
+    expect(await recordAllocations(input)).toMatchObject({ ok: false });
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 7500, futureSavedCents: 2500 });
+    expect((await loadAllocationSources(state.user, state.today)).sources.some(s => s.kind === "plan-release")).toBe(false);
+  });
+  it("covers the purchase from Piggy without spending the reserve twice", async () => {
+    const { goal } = await bike();
+    await state.pg.exec("UPDATE settings SET piggy_bank_cents=10000");
+    expect(await transferPiggyToGoal({ goalId: goal.id, amountCents: 10000 })).toEqual({ ok: true });
+    expect(await transferPiggyToGoal({ goalId: goal.id, amountCents: 10000 })).toMatchObject({ ok: false });
+    expect((await db.select().from(schema.settings))[0].piggyBankCents).toBe(0);
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 7500, futureSavedCents: 2500 });
+  });
+  it("funds oldest purchases first", async () => {
+    const { goal, recovery: later } = await bike();
+    const [purchase] = await db.insert(schema.transactions).values({ userId: state.user, goalId: goal.id,
+      date: "2031-03-27", note: "Lights", amountCents: -3000, category: "variable", fundingStatus: "needs-future-money", planFundingCents: 0 }).returning();
+    const [older] = await db.insert(schema.creditCardCommitments).values({ userId: state.user, sourceTransactionId: purchase.id,
+      name: "Lights", originalCents: 3000, startDate: state.today, dueDate: "2031-04-11" }).returning();
+    expect(await updateGoalFunding(goal.id, { manualCents: 4000 })).toEqual({ ok: true });
+    const recoveries = await db.select().from(schema.creditCardCommitments);
+    expect(recoveries.find(r => r.id === older.id)?.fundedCents).toBe(3000);
+    expect(recoveries.find(r => r.id === later.id)?.fundedCents).toBe(1000);
+    expect(await balances(goal.id)).toMatchObject({ futureSavedCents: 0, recoveryFundedCents: 4000 });
+  });
+  it("applies existing savings once, preserves another visitor and skips archived Plans", async () => {
+    const { goal } = await bike();
+    const otherUser = "10000000-0000-4000-8000-000000000002";
+    await db.insert(schema.users).values({ id: otherUser, email: "other@example.test" });
+    const other = await bike(otherUser);
+    const archived = await bike();
+    await db.transaction(async tx => {
+      for (const g of [goal, other.goal, archived.goal]) {
+        await tx.insert(schema.goalFundingEvents).values({ userId: g.userId, goalId: g.id, kind: "manual", amountCents: 10000 });
+        await tx.execute(sql`UPDATE goals SET current_cents=10000 WHERE id=${g.id}`);
+      }
+      await tx.execute(sql`UPDATE goals SET archived_at=now() WHERE id=${archived.goal.id}`);
+    });
+    expect(await reconcileUncoveredPlanPurchases(state.user)).toBe(7500);
+    const history = await db.select().from(schema.creditCardFundingEvents);
+    expect(await reconcileUncoveredPlanPurchases(state.user)).toBe(0);
+    expect(await db.select().from(schema.creditCardFundingEvents)).toEqual(history);
+    expect(history.every(e => e.userId === state.user)).toBe(true);
+    expect((await db.select().from(schema.creditCardCommitments)).filter(r => r.id !== history[0].commitmentId).every(r => r.fundedCents === 0)).toBe(true);
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 7500, futureSavedCents: 2500 });
+  });
+  it("keeps money used by legacy covered purchases protected from a second use", async () => {
+    const { goal } = await bike();
+    await db.transaction(async tx => {
+      await tx.insert(schema.goalFundingEvents).values({ userId: state.user, goalId: goal.id, kind: "manual", amountCents: 5000 });
+      await tx.execute(sql`UPDATE goals SET current_cents=5000 WHERE id=${goal.id}`);
+    });
+    await db.insert(schema.transactions).values({ userId: state.user, goalId: goal.id, date: state.today,
+      note: "Legacy covered parts", amountCents: -5000, category: "variable", fundingStatus: "covered" });
+    expect(await reconcileUncoveredPlanPurchases(state.user)).toBe(0);
+    expect(await updateGoalFunding(goal.id, { manualCents: 7500 })).toEqual({ ok: true });
+    expect((await db.select().from(schema.goals))[0].currentCents).toBe(5000);
+    expect((await db.select().from(schema.creditCardCommitments))[0].fundedCents).toBe(2500);
+    expect((await loadPlanCompletionPreview(state.user, goal.id))?.legacyReservedCents).toBe(5000);
+    expect((await loadReconciliationReport(state.user, state.today)).mismatchCount).toBe(0);
+  });
+  it("moves scheduled savings into purchase funding without breaking payday or Plan journals", async () => {
+    const { goal } = await bike();
+    await state.pg.exec(`UPDATE goals SET saving_start_date='2031-03-28' WHERE id='${goal.id}'`);
+    const result = await syncAutomaticGoalSavings();
+    expect(result.ok).toBe(true);
+    const plan = (await db.select().from(schema.goals))[0];
+    const recovery = (await db.select().from(schema.creditCardCommitments))[0];
+    const transfers = await db.select().from(schema.goalSavingTransfers);
+    expect(recovery.fundedCents).toBeGreaterThan(0);
+    expect(plan.currentCents + recovery.fundedCents).toBe(transfers.reduce((sum, t) => sum + t.amountCents, 0));
+    expect((await loadReconciliationReport(state.user, state.today)).mismatchCount).toBe(0);
+    expect(await syncAutomaticGoalSavings()).toMatchObject({ ok: true, creditedCents: 0 });
+  });
+  it("rolls back a whole contribution if writing purchase funding fails", async () => {
+    const { goal } = await bike();
+    await state.pg.exec("CREATE FUNCTION reject_test_funding() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test write failure'; END $$; CREATE TRIGGER reject_test_funding BEFORE INSERT ON credit_card_funding_events FOR EACH ROW EXECUTE FUNCTION reject_test_funding();");
+    try {
+      expect(await updateGoalFunding(goal.id, { manualCents: 10000 })).toMatchObject({ ok: false });
+      expect(await db.select().from(schema.goalFundingEvents)).toHaveLength(0);
+      expect(await db.select().from(schema.creditCardFundingEvents)).toHaveLength(0);
+      expect(await balances(goal.id)).toMatchObject({ totalFundedCents: 0, futureSavedCents: 0 });
+    } finally {
+      await state.pg.exec("DROP TRIGGER reject_test_funding ON credit_card_funding_events; DROP FUNCTION reject_test_funding();");
+    }
+  });
+  it("rejects removing a leftover assignment already used by the purchase", async () => {
+    const { goal } = await bike();
+    await state.pg.exec("UPDATE settings SET tracking_start_date='2031-03-14'");
+    const [envelope] = await db.insert(schema.envelopes).values({ userId: state.user, name: "Fun money", periodAmountCents: 6000,
+      accrualStartDate: "2031-03-14", period: "biweekly", category: "guilt-free", rolloverBehavior: "reset" }).returning();
+    await db.insert(schema.envelopePolicyVersions).values({ userId: state.user, envelopeId: envelope.id,
+      effectiveDate: "2031-03-14", periodAmountCents: 6000, period: "biweekly", category: "guilt-free",
+      rolloverBehavior: "reset", recurrence: "recurring" });
+    const available = await loadAllocationSources(state.user, state.today);
+    const source = available.sources.find(s => s.kind === "leftover")!;
+    expect(source.amountCents).toBe(6000);
+    expect(await recordAllocations({ periodStartIso: source.periodStartIso, sources: [source],
+      entries: [{ targetKind: "goal", goalId: goal.id, amountCents: 6000 }] })).toEqual({ ok: true });
+    const allocations = await db.select().from(schema.paycheckAllocations);
+    expect(await updateAllocations({ periodStartIso: source.periodStartIso,
+      entries: [{ targetKind: "investment", amountCents: 6000 }] })).toMatchObject({ ok: false });
+    expect(await db.select().from(schema.paycheckAllocations)).toEqual(allocations);
+    expect(await balances(goal.id)).toMatchObject({ recoveryFundedCents: 6000, futureSavedCents: 0 });
+  });
 });

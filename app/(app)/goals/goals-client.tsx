@@ -1475,7 +1475,7 @@ function FundingForm({
           placeholder="0.00"
         />
         <p className="mt-2 text-[12px] text-secondary-label">
-          Editing this amount leaves assigned money unchanged.
+          Covers unfunded purchases first. Money already used cannot be removed.
         </p>
       </div>
       {error && (

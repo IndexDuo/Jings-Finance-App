@@ -205,3 +205,70 @@ test("concurrent first visits seed an anonymous owner only once", async ({ conte
   expect(report.mismatchCount).toBe(0);
   expect(report.issues).toEqual([]);
 });
+
+test("manual Plan savings cover Bike rack first and protect money already used", async ({ page }) => {
+  const owner = await start(page);
+  await page.goto("/goals");
+  await page.getByRole("button", { name: "Bike upgrade funding details", exact: true }).click();
+  await page.getByLabel("Additional savings", { exact: true }).fill("100.00");
+  await page.getByRole("button", { name: "Save additional savings", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  const progress = page.getByRole("progressbar", { name: "Bike upgrade funding", exact: true });
+  await expect(progress).toHaveAttribute("aria-valuenow", "10000");
+  const card = progress.locator("..");
+  await card.locator("summary").click();
+  await expect(card.getByText("Bike rack", { exact: true })).toBeVisible();
+  await expect(card.getByText("Funded", { exact: true })).toBeVisible();
+  const before = await readDemoRows(async c => (await c.query(`SELECT g.id,g.current_cents,r.funded_cents,t.plan_funding_cents
+    FROM goals g JOIN transactions t ON t.goal_id=g.id JOIN credit_card_commitments r ON r.source_transaction_id=t.id
+    WHERE g.user_id=$1 AND g.name='Bike upgrade' AND t.note='Bike rack'`, [owner])).rows[0]);
+  expect(before).toMatchObject({ current_cents: 2500, funded_cents: 7500, plan_funding_cents: 0 });
+  await page.getByRole("button", { name: "Bike upgrade funding details", exact: true }).click();
+  await page.getByLabel("Additional savings", { exact: true }).fill("50.00");
+  await page.getByRole("button", { name: "Save additional savings", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("available savings");
+  await page.getByRole("button", { name: "Close", exact: true }).click();
+  await page.reload();
+  await page.goto(`/projects/${before.id}`);
+  await expect(page.getByText("$25.00", { exact: true })).toBeVisible();
+  await page.goto("/paycheck");
+  await page.reload();
+  await page.goto("/goals");
+  await page.reload();
+  const after = await readDemoRows(async c => (await c.query(`SELECT g.current_cents,r.funded_cents,
+    (SELECT sum(amount_cents)::int FROM credit_card_funding_events WHERE commitment_id=r.id) AS journal
+    FROM goals g JOIN transactions t ON t.goal_id=g.id JOIN credit_card_commitments r ON r.source_transaction_id=t.id
+    WHERE g.user_id=$1 AND g.name='Bike upgrade' AND t.note='Bike rack'`, [owner])).rows[0]);
+  expect(after).toEqual({ current_cents: 2500, funded_cents: 7500, journal: 7500 });
+  const report = await (await page.request.get("/api/reconciliation")).json();
+  expect(report.mismatchCount).toBe(0);
+  expect(report.issues).toEqual([]);
+});
+
+test("a finished project's leftover covers Bike rack and keeps the remainder saved", async ({ page }) => {
+  const owner = await start(page);
+  const workspace = await readDemoRows(async c => (await c.query("SELECT id FROM goals WHERE user_id=$1 AND name='Home workspace'", [owner])).rows[0].id);
+  await page.goto(`/projects/${workspace}`);
+  await page.getByRole("button", { name: "Finish project", exact: true }).click();
+  await page.getByRole("button", { name: "Finish and release", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await page.goto("/paycheck");
+  await page.getByRole("button", { name: /^Money to assign/ }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: /^🎯 Plans/ }).click();
+  await dialog.getByRole("radio", { name: /Bike upgrade/ }).click();
+  await dialog.getByRole("button", { name: /Use remaining/ }).click();
+  await dialog.getByRole("button", { name: "Review allocation", exact: true }).click();
+  await dialog.getByRole("button", { name: "Confirm allocation", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const rows = await readDemoRows(async c => (await c.query(`SELECT g.current_cents,r.funded_cents,
+    (SELECT sum(amount_cents)::int FROM paycheck_allocations WHERE user_id=$1 AND goal_id=g.id) AS assigned
+    FROM goals g JOIN transactions t ON t.goal_id=g.id JOIN credit_card_commitments r ON r.source_transaction_id=t.id
+    WHERE g.user_id=$1 AND g.name='Bike upgrade' AND t.note='Bike rack'`, [owner])).rows[0]);
+  expect(rows.funded_cents).toBe(7500);
+  expect(rows.current_cents + rows.funded_cents).toBe(rows.assigned);
+  expect(rows.current_cents).toBeGreaterThanOrEqual(30000);
+  const report = await (await page.request.get("/api/reconciliation")).json();
+  expect(report.mismatchCount).toBe(0);
+  expect(report.issues).toEqual([]);
+});

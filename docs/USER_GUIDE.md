@@ -54,6 +54,8 @@ For example, $1,200 still needed over eight eligible paychecks gives a $150 savi
 
 For related purchases, use **Add project** in Projects and select the Plan. Use **Organize** for groups such as Parts or Equipment. Each purchase shows what saved money covers and what still needs future paychecks.
 
+Money added to a Plan covers its unfunded purchases first, then saves the rest. If a bike rack needs $75 and you add $100, the rack becomes funded and $25 stays saved. This also works when you move Piggy money or assign leftovers to the Plan. Existing unused savings catch up when you open Plans or Paycheck.
+
 ## Assign money left over
 
 Choose **Finish project** when done and review its totals. Only unused funded savings are released; uncovered purchases still need money.
