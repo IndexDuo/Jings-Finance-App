@@ -4,7 +4,7 @@ Use Log to record what happened. Use Paycheck to see where your money needs to g
 
 ## Start here
 
-[Try the demo](https://jings-finance-demo.vercel.app/demo) with made-up money. **Start demo** opens Log. **Continue demo** opens your same copy. **Start fresh demo** starts over; you cannot return to the old copy afterward. Other visitors get their own copies.
+[Try the demo](https://jings-finance-demo.vercel.app/demo) with made-up money. **Start demo** opens Log. **Continue demo** opens your same copy. **Start fresh demo** deletes your current copy so you can start over. Other visitors keep their own copies.
 
 Your demo copy lasts 12 hours. After that, your changes are deleted and you can start again with fresh example data. This limit applies only to the demo.
 

@@ -59,7 +59,7 @@ export function ResetDemo() {
   const [error, setError] = useState<string | null>(null);
   return <div>
     <button type="button" disabled={pending} className="min-h-11 rounded-lg px-2 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-system-blue" onClick={() => {
-      if (!window.confirm("Start a fresh fictional demo? You won’t be able to return to this copy after resetting.")) return;
+      if (!window.confirm("Start a fresh fictional demo? This will delete your current demo and its changes.")) return;
       transition(async () => {
         setError(null);
         const result = await leaveDemo();

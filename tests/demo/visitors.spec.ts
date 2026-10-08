@@ -121,25 +121,56 @@ test("workspace completion preserves its $375 release and the starter journals r
   expect(after.issues).toEqual([]);
 });
 
-test("reset starts a fresh visitor without deleting the previous copy or showing personal account controls", async ({ page }) => {
+test("reset erases the previous copy and sessions while preserving other visitors", async ({ page, browser }) => {
   const owner = await start(page);
+  const otherContext = await browser.newContext();
+  const otherPage = await otherContext.newPage();
+  const other = await start(otherPage);
+  const staleContext = await browser.newContext({ storageState: await page.context().storageState() });
+  const stalePage = await staleContext.newPage();
+  await stalePage.goto("/log");
+  // Include a finished project's immutable receipt and released funding.
+  const project = await readDemoRows(async c => (await c.query("SELECT id FROM goals WHERE user_id=$1 AND name='Home workspace'", [owner])).rows[0].id);
+  await page.goto(`/projects/${project}`);
+  await page.getByRole("button", { name: "Finish project", exact: true }).click();
+  await page.getByRole("button", { name: "Finish and release", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.goto("/settings");
   await expect(page.getByRole("link", { name: "Reset password", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sign out", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: /^Bills/ }).click();
   await expect(page.getByRole("button", { name: "Start fresh demo", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.getByRole("button", { name: "Start fresh demo", exact: true }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  expect((await page.request.get("/api/financial-history")).status()).toBe(200);
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Start fresh demo", exact: true }).click();
   await expect(page).toHaveURL(/\/demo$/);
-  const other = await start(page);
-  expect(other).not.toBe(owner);
-  const owners = await readDemoRows(async c => (await c.query("SELECT user_id,count(*)::int AS count FROM transactions WHERE user_id=ANY($1::uuid[]) GROUP BY user_id", [[owner, other]])).rows);
+  await readDemoRows(async c => {
+    for (const { tablename } of (await c.query("SELECT tablename FROM pg_tables WHERE schemaname='public'")).rows) {
+      const key = tablename === "users" ? "id" : "user_id";
+      expect((await c.query(`SELECT count(*)::int AS n FROM public.${tablename} WHERE ${key}=$1`, [owner])).rows[0].n).toBe(0);
+    }
+    expect((await c.query("SELECT count(*)::int AS n FROM auth.users WHERE id=$1", [owner])).rows[0].n).toBe(0);
+    expect((await c.query("SELECT count(*)::int AS n FROM auth.sessions WHERE user_id=$1", [owner])).rows[0].n).toBe(0);
+  });
+  expect((await stalePage.request.get("/api/financial-history")).status()).toBe(401);
+  await stalePage.reload();
+  await expect(stalePage).toHaveURL(/\/demo$/);
+  await expect(stalePage.getByRole("link", { name: "Continue demo", exact: true })).toHaveCount(0);
+  const fresh = await start(page);
+  expect(fresh).not.toBe(owner);
+  expect((await otherPage.request.get("/api/financial-history")).status()).toBe(200);
+  const owners = await readDemoRows(async c => (await c.query("SELECT user_id,count(*)::int AS count FROM transactions WHERE user_id=ANY($1::uuid[]) GROUP BY user_id", [[owner, fresh, other]])).rows);
   expect(owners).toHaveLength(2);
   expect(owners.every(r => r.count === 16)).toBe(true);
   await page.goto("/signup");
   await expect(page).toHaveURL(/\/demo$/);
   await expect(page.getByLabel("Email", { exact: true })).toHaveCount(0);
+  await staleContext.close();
+  await otherContext.close();
 });
 
 test("concurrent first visits seed an anonymous owner only once", async ({ context }) => {

@@ -14,6 +14,13 @@ import { demoSessionActive } from "./expiry";
 type DemoTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type DemoBill = typeof schema.fixedExpenses.$inferSelect;
 
+async function lockDemoIdentity(tx: DemoTransaction, userId: string) {
+  const identity = await tx.execute(sql`SELECT id FROM auth.users WHERE id=${userId}::uuid
+    AND is_anonymous IS TRUE AND created_at<=now() AND created_at>now()-interval '12 hours'
+    FOR KEY SHARE`);
+  if (identity.rows.length !== 1) throw new Error("This demo session has ended.");
+}
+
 /** Real confirmations, not just display rows: reminders and payment history agree. */
 async function addDemoBillPayments(tx: DemoTransaction, userId: string, bills: DemoBill[], seedDate: string) {
   const recentPaid = addDays(parseLocalIsoDate(seedDate), -1);
@@ -42,6 +49,7 @@ async function addDemoBillPayments(tx: DemoTransaction, userId: string, bills: D
 /** Repair old starter copies once per untouched bill; never replace visitor edits. */
 async function repairDemoBillHistory(userId: string) {
   await db.transaction(async tx => {
+    await lockDemoIdentity(tx, userId);
     // Use the same owner lock as ordinary money changes, including payments.
     await tx.select({ id: schema.settings.userId }).from(schema.settings).where(eq(schema.settings.userId, userId)).for("update");
     const revisions = await tx.select().from(schema.financialSettingsRevisions).where(eq(schema.financialSettingsRevisions.userId, userId));
@@ -94,6 +102,9 @@ export async function ensureDemoDataset(user: User) {
   const start = day(-32);
 
   await db.transaction(async tx => {
+    // A verified request may have started just before reset. Hold the Auth row
+    // until this seed commits so a deleted identity can never be seeded again.
+    await lockDemoIdentity(tx, userId);
     // Lock the owner even before Settings exists. Concurrent first requests must
     // not reseed, overwrite edits, or create two sets of funding journals.
     await tx.insert(schema.users).values({ id: userId, email: `demo-${userId}@example.invalid` }).onConflictDoNothing();

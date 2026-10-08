@@ -36,6 +36,7 @@ it("keeps an expired JWT from reading rows before physical deletion", async () =
   try {
     expect((await pg.query("SELECT * FROM public.settings")).rows).toHaveLength(0);
     await expect(pg.exec("SELECT finance_private.cleanup_expired_demo_users()")).rejects.toThrow(/permission denied/);
+    await expect(pg.exec(`SELECT finance_private.erase_demo_users(ARRAY['${fresh}'::uuid])`)).rejects.toThrow(/permission denied/);
     await pg.exec(`SELECT set_config('request.jwt.claim.sub','${fresh}',false);`);
     expect((await pg.query("SELECT * FROM public.settings")).rows).toHaveLength(1);
   } finally { await pg.exec("RESET ROLE; SELECT set_config('request.jwt.claim.sub','',false);"); }
@@ -68,7 +69,23 @@ it("rolls back deletion and restores every financial trigger if cleanup fails", 
   await expect(pg.exec("DELETE FROM public.financial_record_history")).rejects.toThrow(/append-only/);
   await pg.exec("DROP TRIGGER test_delete_failure ON auth.users; DROP FUNCTION auth.test_delete_failure();");
 });
+it("erases a selected fresh copy immediately, preserves other accounts, and is safe to repeat", async () => {
+  await expect(pg.exec(`SELECT finance_private.erase_demo_users(ARRAY['${fresh}'::uuid,'${permanent}'::uuid])`)).rejects.toThrow(/Permanent accounts/);
+  expect((await pg.query(`SELECT * FROM public.settings WHERE user_id='${fresh}'`)).rows).toHaveLength(1);
+  expect((await pg.query<{deleted:number}>(`SELECT finance_private.erase_demo_users(ARRAY['${fresh}'::uuid]) AS deleted`)).rows[0].deleted).toBe(1);
+  for (const table of tables) {
+    const key = table === "users" ? "id" : "user_id";
+    expect((await pg.query(`SELECT * FROM public.${table} WHERE ${key}='${fresh}'`)).rows).toHaveLength(0);
+  }
+  expect((await pg.query(`SELECT * FROM auth.users WHERE id='${fresh}'`)).rows).toHaveLength(0);
+  expect((await pg.query(`SELECT * FROM auth.sessions WHERE user_id='${fresh}'`)).rows).toHaveLength(0);
+  expect((await pg.query(`SELECT * FROM public.settings WHERE user_id='${permanent}'`)).rows).toHaveLength(1);
+  expect((await pg.query(`SELECT * FROM public.settings WHERE user_id='${expired}'`)).rows).toHaveLength(1);
+  expect((await pg.query<{deleted:number}>(`SELECT finance_private.erase_demo_users(ARRAY['${fresh}'::uuid]) AS deleted`)).rows[0].deleted).toBe(0);
+  await expect(pg.exec("DELETE FROM public.financial_record_history")).rejects.toThrow(/append-only/);
+});
 it("refuses cleanup without the dedicated demo marker", async () => {
   await pg.exec("DELETE FROM finance_private.demo_installation");
   await expect(pg.exec("SELECT finance_private.cleanup_expired_demo_users()")).rejects.toThrow(/dedicated demo/);
+  await expect(pg.exec(`SELECT finance_private.erase_demo_users(ARRAY['${permanent}'::uuid])`)).rejects.toThrow(/dedicated demo/);
 });

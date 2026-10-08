@@ -31,9 +31,9 @@ BEGIN
 END;
 $$;
 
--- Runs as the database owner through Cron, never as an API request. There are
--- no caller-supplied IDs, ages, or cutoffs. Only expired anonymous users qualify.
-CREATE OR REPLACE FUNCTION finance_private.cleanup_expired_demo_users() RETURNS integer
+-- Server-only deletion shared by explicit reset and scheduled expiry. The app
+-- passes only the ID verified by Auth; browser roles cannot call this function.
+CREATE OR REPLACE FUNCTION finance_private.erase_demo_users(requested_owners uuid[]) RETURNS integer
 LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' SET lock_timeout = '5s' AS $$
 DECLARE
   owners uuid[];
@@ -55,12 +55,14 @@ BEGIN
   IF current_user <> 'postgres' OR (SELECT count(*) FROM finance_private.demo_installation) <> 1 THEN
     RAISE EXCEPTION 'Only the dedicated demo database owner may run cleanup';
   END IF;
-  IF NOT pg_try_advisory_xact_lock(602418291) THEN RETURN 0; END IF;
-  SELECT array_agg(id) INTO owners FROM (
-    SELECT id FROM auth.users
-    WHERE is_anonymous IS TRUE AND created_at <= now() - interval '12 hours'
-    ORDER BY created_at, id LIMIT 100 FOR UPDATE SKIP LOCKED
-  ) expired;
+  PERFORM pg_advisory_xact_lock(602418291);
+  -- Lock Auth first, matching the starter-data transaction's lock order.
+  PERFORM id FROM auth.users WHERE id = ANY(requested_owners) ORDER BY id FOR UPDATE;
+  IF EXISTS (SELECT 1 FROM auth.users WHERE id = ANY(requested_owners) AND is_anonymous IS DISTINCT FROM TRUE) THEN
+    RAISE EXCEPTION 'Permanent accounts cannot be erased by demo cleanup';
+  END IF;
+  SELECT array_agg(id) INTO owners FROM auth.users
+    WHERE id = ANY(requested_owners) AND is_anonymous IS TRUE;
   IF owners IS NULL THEN RETURN 0; END IF;
 
   -- Financial records normally cannot be erased. Acquire all table locks first,
@@ -96,12 +98,33 @@ BEGIN
   RETURN cardinality(owners);
 END;
 $$;
+REVOKE ALL ON FUNCTION finance_private.erase_demo_users(uuid[]) FROM PUBLIC, anon, authenticated;
+
+-- Cron selects only expired identities; reset does not change their timestamps.
+CREATE OR REPLACE FUNCTION finance_private.cleanup_expired_demo_users() RETURNS integer
+LANGUAGE plpgsql SECURITY INVOKER SET search_path = '' SET lock_timeout = '5s' AS $$
+DECLARE owners uuid[];
+BEGIN
+  IF current_user <> 'postgres' OR (SELECT count(*) FROM finance_private.demo_installation) <> 1 THEN
+    RAISE EXCEPTION 'Only the dedicated demo database owner may run cleanup';
+  END IF;
+  IF NOT pg_try_advisory_xact_lock(602418291) THEN RETURN 0; END IF;
+  SELECT array_agg(id) INTO owners FROM (
+    SELECT id FROM auth.users WHERE is_anonymous IS TRUE
+      AND created_at <= now() - interval '12 hours'
+    ORDER BY created_at, id LIMIT 100 FOR UPDATE SKIP LOCKED
+  ) expired;
+  IF owners IS NULL THEN RETURN 0; END IF;
+  RETURN finance_private.erase_demo_users(owners);
+END;
+$$;
 REVOKE ALL ON FUNCTION finance_private.cleanup_expired_demo_users() FROM PUBLIC, anon, authenticated;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
     REVOKE ALL ON FUNCTION finance_private.demo_session_active() FROM service_role;
     REVOKE ALL ON FUNCTION finance_private.cleanup_expired_demo_users() FROM service_role;
+    REVOKE ALL ON FUNCTION finance_private.erase_demo_users(uuid[]) FROM service_role;
   END IF;
 END;
 $$;
