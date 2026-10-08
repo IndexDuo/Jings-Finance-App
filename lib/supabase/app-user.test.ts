@@ -33,9 +33,16 @@ it("demo deployments reject permanent accounts and metadata that impersonates an
 });
 it("demo access requires both a verified anonymous identity and the dedicated database guard", async () => {
   vi.stubEnv("FINANCE_DEMO_MODE", "true");
-  mocks.user = { id: "visitor", is_anonymous: true };
+  mocks.user = { id: "visitor", is_anonymous: true, created_at: new Date().toISOString() };
   expect((await getAppAuthUser())?.id).toBe("visitor");
   expect(mocks.guard).toHaveBeenCalledOnce();
   mocks.guard.mockRejectedValue(new Error("Dedicated demo database required"));
   await expect(getAppAuthUser()).rejects.toThrow("Dedicated demo database required");
+});
+it("denies an expired anonymous identity before any database initialization", async () => {
+  vi.stubEnv("FINANCE_DEMO_MODE", "true");
+  mocks.user = { id: "visitor", is_anonymous: true,
+    created_at: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString() };
+  expect(await getAppAuthUser()).toBeNull();
+  expect(mocks.guard).not.toHaveBeenCalled();
 });

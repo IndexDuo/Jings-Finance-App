@@ -32,6 +32,8 @@ async function setup() {
         project_url text PRIMARY KEY, installed_at timestamptz NOT NULL DEFAULT now()
       ); REVOKE ALL ON finance_private.demo_installation FROM PUBLIC, anon, authenticated;`);
       await client.query("INSERT INTO finance_private.demo_installation(project_url) VALUES ($1)", [projectUrl]);
+      const expiry = await readFile(fileURLToPath(new URL("./demo/expiry.sql", import.meta.url)), "utf8");
+      await client.query(expiry);
     }
     await client.query("COMMIT");
     console.log(demo ? "Fresh demo database installed. Enable Anonymous Sign-Ins and visit /demo."

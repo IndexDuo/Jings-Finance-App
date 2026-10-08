@@ -6,6 +6,8 @@ Use Log to record what happened. Use Paycheck to see where your money needs to g
 
 [Try the demo](https://jings-finance-demo.vercel.app/demo) with made-up money. **Start demo** opens Log. **Continue demo** opens your same copy. **Start fresh demo** starts over; you cannot return to the old copy afterward. Other visitors get their own copies.
 
+Your demo copy lasts 12 hours. After that, your changes are deleted and you can start again with fresh example data. This limit applies only to the demo.
+
 In your personal copy, finish setup with take-home pay, a recent payday, pay schedule, and timezone. Add bills and envelopes, then review Paycheck. Earlier purchases and bank balances are not imported.
 
 For timezone, open the list or search for a city or region, such as New York or America. Choose the matching timezone. You can change it later in Settings → Pay.

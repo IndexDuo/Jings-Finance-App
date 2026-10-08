@@ -48,7 +48,7 @@ Use a second, separate local database and Auth service. Enable anonymous sign-in
 3. Keep `FINANCE_DEMO_TEST_ENV=local-disposable-demo` and configure Chromium as above.
 4. Run `npm run test:demo`.
 
-Demo tests use port 3102 and public anonymous sign-in. They do not need a service-role key. They reject hosted connections, a personal app's connections, and databases without the private demo marker. Database inspection is read-only; money changes go through the app.
+Demo tests use port 3102 and public anonymous sign-in. They do not need a service-role key. They reject hosted connections, a personal app's connections, and databases without the private demo marker. Money changes go through the app. Expiry tests age fresh test identities and run cleanup in this disposable database. They check that expired copies lose access, are deleted, and can start again. Other database checks are read-only.
 
 `visitors.spec.ts` checks separate visitor copies, Start/Continue opening Log, reload persistence, blocked access to another visitor's records, the centered Log-only notice, reset, and simultaneous first visits. It also checks that finishing Home workspace releases $375 and that the funding totals agree.
 

@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  The demo uses made-up money. Each visitor gets their own copy. Best used on a phone.
+  The demo uses made-up money. Each visitor gets their own copy for 12 hours. Best used on a phone.
 </p>
 
 Jing’s Finance App helps you reserve money for bills, track everyday spending, save for purchases, recover unexpected expenses, and see what remains available to invest. It is a self-hostable personal finance app with manual entry.

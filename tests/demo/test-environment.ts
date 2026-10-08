@@ -32,3 +32,32 @@ export async function readDemoRows<T>(read: (client: Client) => Promise<T>) {
     return await read(client);
   } finally { await client.query("ROLLBACK").catch(() => {}); await client.end(); }
 }
+
+/** Only age identities just created by this test in the disposable local demo.
+ * Financial edits still use the UI; scheduled deletion is tested separately. */
+export async function ageFreshDemoTestOwner(owner: string, remainingMs = 0) {
+  assertSafeDemoTestEnvironment();
+  if (!Number.isInteger(remainingMs) || remainingMs < 0 || remainingMs > 60_000)
+    throw new Error("Only the final minute of a test copy can be simulated.");
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    const marker = await client.query("SELECT 1 FROM finance_private.demo_installation WHERE project_url=$1", [process.env.E2E_SUPABASE_URL!.replace(/\/$/, "")]);
+    if (marker.rowCount !== 1) throw new Error("Marked disposable demo required.");
+    const result = await client.query(`UPDATE auth.users SET created_at=now()-interval '12 hours'+($2::int * interval '1 millisecond')
+      WHERE id=$1 AND is_anonymous IS TRUE AND created_at>now()-interval '5 minutes'
+      AND EXISTS (SELECT 1 FROM public.users WHERE id=$1 AND email='demo-' || $1::text || '@example.invalid')`, [owner, remainingMs]);
+    if (result.rowCount !== 1) throw new Error("Only a fresh anonymous test copy may be aged.");
+  } finally { await client.end(); }
+}
+
+export async function runLocalDemoCleanup() {
+  assertSafeDemoTestEnvironment();
+  const client = new Client({ connectionString: process.env.E2E_DATABASE_URL });
+  await client.connect();
+  try {
+    const marker = await client.query("SELECT 1 FROM finance_private.demo_installation WHERE project_url=$1", [process.env.E2E_SUPABASE_URL!.replace(/\/$/, "")]);
+    if (marker.rowCount !== 1) throw new Error("Marked disposable demo required.");
+    return (await client.query("SELECT finance_private.cleanup_expired_demo_users() AS deleted")).rows[0].deleted as number;
+  } finally { await client.end(); }
+}

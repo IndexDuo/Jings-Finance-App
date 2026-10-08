@@ -9,6 +9,7 @@ import { fundProjectPurchase } from "@/features/projects/purchase-funding";
 import { linkFixedExpensePayment } from "@/features/fixed-expenses/payment-ledger";
 import { retreatFixedExpenseDueDate } from "@/features/fixed-expenses/lib/schedule";
 import { isDemoMode } from "./config";
+import { demoSessionActive } from "./expiry";
 
 type DemoTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type DemoBill = typeof schema.fixedExpenses.$inferSelect;
@@ -80,7 +81,7 @@ export async function assertDemoInstallation() {
 
 /** One atomic starter dataset per verified anonymous owner, never a shared account. */
 export async function ensureDemoDataset(user: User) {
-  if (user.is_anonymous !== true) throw new Error("Demo sessions must be anonymous.");
+  if (!demoSessionActive(user)) throw new Error("This demo session has ended.");
   await assertDemoInstallation();
   const userId = user.id;
   const initialized = await db.select({ userId: schema.settings.userId }).from(schema.settings).where(eq(schema.settings.userId, userId));

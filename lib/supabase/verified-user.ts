@@ -5,6 +5,7 @@ import { cache } from "react";
 
 import { getAppAuthUser } from "./app-user";
 import { isDemoMode } from "@/lib/demo/config";
+import { demoExpiresAt } from "@/lib/demo/expiry";
 
 /** Return an ID only after Supabase has verified the session's JWT signature. */
 export const getVerifiedUser = cache(async () => {
@@ -13,7 +14,7 @@ export const getVerifiedUser = cache(async () => {
   if (isDemoMode()) {
     const { ensureDemoDataset } = await import("@/lib/demo/server");
     await ensureDemoDataset(user);
-    return { id: user.id };
+    return { id: user.id, demoExpiresAt: demoExpiresAt(user), demoCheckedAt: Date.now() };
   }
   // Password signup without email confirmation does not visit an auth callback.
   await db.insert(schema.users).values({ id: user.id, email: user.email! })
