@@ -58,6 +58,8 @@ Demo tests use port 3102 and public anonymous sign-in. They do not need a servic
 
 `bills.spec.ts` checks that two months of fictional bill payments appear in History, stay linked to their bills, and are added only once without creating extra recovery.
 
+`timezone.spec.ts` checks filtering, touch and keyboard selection, saving, and a list that fits a narrow phone screen.
+
 For a production browser check, build with the local demo settings and run `npm start -- --hostname 127.0.0.1 --port 3102` with the same settings. Then run the demo tests; the config reuses that server. Leave analytics unset to avoid counting test visits.
 
 These tests use Chromium with phone-sized screens. Also check Safari on a real iPhone and Android. For a hosted demo, check Start, reload after adding a purchase, a separate copy in a private window, Continue, and Start fresh.

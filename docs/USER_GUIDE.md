@@ -8,6 +8,8 @@ Use Log to record what happened. Use Paycheck to see where your money needs to g
 
 In your personal copy, finish setup with take-home pay, a recent payday, pay schedule, and timezone. Add bills and envelopes, then review Paycheck. Earlier purchases and bank balances are not imported.
 
+For timezone, open the list or search for a city or region, such as New York or America. Choose the matching timezone. You can change it later in Settings → Pay.
+
 ## What the names mean
 
 | Name | Meaning |

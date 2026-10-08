@@ -36,6 +36,7 @@ test("skipped onboarding budgets apply now, Settings feedback resets, and a stal
   await money(page, "Take-home per paycheck", "1500.00");
   await page.getByLabel("Pay frequency").selectOption("biweekly");
   await page.getByLabel("Timezone").fill("UTC");
+  await page.getByRole("option", { name: "UTC", exact: true }).click();
   await page.getByLabel("Most recent payday").fill(payday);
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next (skip if needed)", exact: true }).click();

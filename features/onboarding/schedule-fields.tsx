@@ -1,6 +1,7 @@
 "use client";
 
 import { PAY_FREQUENCY_LABELS, type PayFrequency } from "@/lib/pay-schedule";
+import { TimezonePicker } from "@/components/ui/timezone-picker";
 
 export interface SchedulePreferences {
   payFrequency: PayFrequency;
@@ -9,7 +10,6 @@ export interface SchedulePreferences {
 }
 
 const input = "mt-1 min-h-12 w-full rounded-button bg-secondary-system-bg px-4 text-[17px] text-label";
-const timezones = ["UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "America/Phoenix", "America/Anchorage", "Pacific/Honolulu"];
 
 export function ScheduleFields({ value, onChange }: {
   value: SchedulePreferences;
@@ -36,11 +36,7 @@ export function ScheduleFields({ value, onChange }: {
       </div>
       <p className="mt-2 text-[13px] text-secondary-label">For example, 1 and 15, or 15 and 31. A date after month-end uses the last day. The first day must be before the 28th so both paydays remain distinct in February.</p>
     </div>}
-    <label className="block text-[13px] font-medium text-secondary-label">Timezone
-      <input aria-label="Timezone" className={input} list="user-timezones" required value={value.timezone}
-        onChange={event => onChange({ timezone: event.target.value })} placeholder="America/Chicago"/>
-      <datalist id="user-timezones">{timezones.map(zone => <option key={zone} value={zone}/>)}</datalist>
-    </label>
-    <p className="text-[13px] text-secondary-label">Use an IANA timezone name. Calendar dates follow this timezone. Paydays use the dates you enter; weekends and holidays are not shifted.</p>
+    <TimezonePicker value={value.timezone} onChange={timezone => onChange({ timezone })}/>
+    <p className="text-[13px] text-secondary-label">Your calendar follows this timezone. Paydays follow the dates you enter, including weekends and holidays.</p>
   </div>;
 }
