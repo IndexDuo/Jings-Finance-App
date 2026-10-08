@@ -27,7 +27,7 @@ export default async function DemoPage() {
       </>}
     </div>
     <p className="mx-auto mt-6 max-w-sm text-[13px] leading-relaxed text-secondary-label">
-      Your demo copy lasts 12 hours. After that, your changes are deleted. Start again with fresh example data.
+      Your demo copy lasts 12 hours.
     </p>
     <div className="mt-12"><DemoHelp /></div>
   </DemoDeviceNotice>;
