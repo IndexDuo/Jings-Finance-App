@@ -29,6 +29,9 @@ export default async function DemoPage() {
     <p className="mx-auto mt-6 max-w-sm text-[13px] leading-relaxed text-secondary-label">
       Your demo copy lasts 12 hours.
     </p>
+    <p className="mt-6 text-[13px] text-secondary-label">
+      Want your own copy? <a href="https://github.com/IndexDuo/Jings-Finance-App" className="text-system-blue underline underline-offset-2">Install and self-host</a>.
+    </p>
     <div className="mt-12"><DemoHelp /></div>
   </DemoDeviceNotice>;
 }
