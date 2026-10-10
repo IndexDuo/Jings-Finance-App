@@ -1,9 +1,9 @@
 <p align="center">
   <a href="https://jings-finance-demo.vercel.app/demo">
-    <img src="docs/screenshots/04-daily-log.png" width="23%" alt="Log with made-up Costco and Starbucks purchases">
-    <img src="docs/screenshots/11-paycheck-recorded.png" width="23%" alt="Paycheck showing where the money goes and what is left to invest">
-    <img src="docs/screenshots/06-project-funded.png" width="23%" alt="Projects with workspace purchases grouped as Equipment">
-    <img src="docs/screenshots/14-plans-after-release.png" width="23%" alt="Plans for a weekend trip and a bike upgrade">
+    <img src="docs/screenshots/log.png" width="23%" alt="Log with Costco and Starbucks purchases and $128.25 available for fun money">
+    <img src="docs/screenshots/paycheck.png" width="23%" alt="The same paycheck with $128.25 available for fun money">
+    <img src="docs/screenshots/project.png" width="23%" alt="Home workspace Project with $125 spent and $375 left from its $500 budget">
+    <img src="docs/screenshots/plans.png" width="23%" alt="Plans including the same Home workspace with $500 funded and two funded purchases">
   </a>
 </p>
 
@@ -93,15 +93,11 @@ Supported schedules are weekly, biweekly, semimonthly, and monthly. Dates follow
 
 ## Preview
 
-The screenshots at the top show Log, Paycheck, Projects, and Plans in the same order as the app. All screenshots use made-up money from the [walkthrough](docs/DEMO.md).
+The four screenshots show one demo copy on October 10, 2026, in the same order as the app: Log, Paycheck, Projects, and Plans.
 
-Here is the full paycheck breakdown and history after a few more paydays:
+Log and Paycheck both show $128.25 available for fun money. Home workspace is the same Plan and Project: $500 funded, $125 spent on a keyboard and lamp, and $375 left.
 
-| Full paycheck breakdown | Paycheck history |
-| --- | --- |
-| <img src="docs/screenshots/16-paycheck-breakdown.png" width="240" alt="Full expanded paycheck breakdown with bills, envelopes, saving, and the investment remainder"> | <img src="docs/screenshots/17-paycheck-history.png" width="240" alt="Populated History card with two past paychecks of fictional activity"> |
-
-See the [walkthrough with screenshots](docs/DEMO.md) for more examples.
+See the [walkthrough](docs/DEMO.md) for the full paycheck breakdown and history from this same copy. All of the money is made up. A fresh demo uses the date you start it, so its dates will differ from these pictures.
 
 ## What this app doesn’t do
 
