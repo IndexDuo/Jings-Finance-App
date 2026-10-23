@@ -128,7 +128,7 @@ Existing installations receiving application-only updates keep their database an
 
 ## How the money is tracked
 
-Bills, envelopes, recovery, and scheduled saving are reserved before showing the investment remainder. Reset and accumulating envelopes have different rollover behavior. Project completion releases only proven unused saved money; allocations retain their funding source. See [accounting rules](docs/ACCOUNTING.md) for the exact calendar and funding conventions.
+Bills, envelopes, recovery, and scheduled saving are reserved before showing the investment remainder. Reset and accumulating envelopes have different rollover behavior. Project completion releases only proven unused saved money; allocations retain their funding source. See [accounting rules](docs/ACCOUNTING.md) for the exact calendar and funding conventions. 
 
 ## Use it on your phone
 
