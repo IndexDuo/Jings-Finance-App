@@ -181,7 +181,7 @@ export function SettingsForm({
                   {settingsMoney(initial.takeHomeCents)}
                 </p>
                 <p className="mt-1 text-[15px] text-secondary-label">
-                  {PAY_FREQUENCY_LABELS[initial.payFrequency]} · {initial.timezone}
+                  {PAY_FREQUENCY_LABELS[initial.payFrequency]}, {initial.timezone}
                 </p>
                 <div className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-separator pt-4 text-[15px]">
                   <span className="text-label">Payday reference</span>

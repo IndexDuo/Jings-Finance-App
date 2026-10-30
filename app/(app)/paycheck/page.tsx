@@ -442,7 +442,7 @@ export default async function PaycheckPage() {
                 transactions.push({
                     date: t.date,
                     category: t.category,
-                    label: isPiggyPurchase ? `Piggy purchase — ${baseLabel}` : baseLabel,
+                    label: isPiggyPurchase ? `Piggy purchase: ${baseLabel}` : baseLabel,
                     amountCents: spendCents,
                 });
             }

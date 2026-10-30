@@ -32,7 +32,7 @@ function refineEnvelopeFields(
     ctx.addIssue({
       code: "custom",
       path: ["newEnvelopeName"],
-      message: "Pick an existing envelope or create a new one — not both",
+      message: "Pick an existing envelope or create a new one, not both",
     });
   }
   if (

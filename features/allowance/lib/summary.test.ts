@@ -18,5 +18,5 @@ it("keeps Log and Paycheck allowance sources equal while spending windows differ
   expect(month.sources).toEqual(paycheck.sources);
   expect(paycheck.currentPaycheckSpentCents).toBe(2911);
   expect(month.currentPaycheckSpentCents).toBe(3911);
-  expect(paycheck.sources[0].detail).toBe("Last refill +$52.50 on Fri, Sep 18, 2037 · Next +$52.50 on Fri, Sep 25, 2037");
+  expect(paycheck.sources[0].detail).toBe("Last refill +$52.50 on Fri, Sep 18, 2037. Next +$52.50 on Fri, Sep 25, 2037");
 });

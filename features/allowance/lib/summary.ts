@@ -17,11 +17,11 @@ export function summarizeAllowance(snapshot: FinancialSnapshot, transactions: re
     .sort((a, b) => b.availableCents - a.availableCents).map(b => ({
       label: b.archived ? `${b.name} (archived)` : b.name,
       amountCents: b.availableCents,
-      detail: b.archived ? "Archived · no future refill"
+      detail: b.archived ? "Archived, no future refill"
         : b.nextAccrualDate ? b.period === "weekly" && b.rolloverBehavior === "accumulate" && b.lastAccrualDate
-          ? `Last refill ${describeEnvelopeRefill(b.lastAccrualDate, b.lastAccrualAmountCents)} · Next ${describeEnvelopeRefill(b.nextAccrualDate, b.nextAccrualAmountCents)}`
+          ? `Last refill ${describeEnvelopeRefill(b.lastAccrualDate, b.lastAccrualAmountCents)}. Next ${describeEnvelopeRefill(b.nextAccrualDate, b.nextAccrualAmountCents)}`
           : describeEnvelopeRefill(b.nextAccrualDate, b.nextAccrualAmountCents)
-        : b.recurrence === "one-time" ? "One-time allowance · no future refill" : "Paused · no future refill",
+        : b.recurrence === "one-time" ? "One-time allowance, no future refill" : "Paused, no future refill",
     }));
   if (snapshot.piggyAvailableCents !== 0) sources.push({ label: "🐷 Piggy bank", amountCents: snapshot.piggyAvailableCents, detail: "Reserve you intentionally kept for later" });
   if (snapshot.unassignedGuiltFreeSpentCents !== 0) sources.push({ label: "Unassigned guilt-free spending", amountCents: -snapshot.unassignedGuiltFreeSpentCents, detail: "One-off purchases without a reusable budget" });

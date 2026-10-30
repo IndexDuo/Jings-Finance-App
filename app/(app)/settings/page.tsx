@@ -33,7 +33,7 @@ export default async function SettingsPage() {
     const envelopeRows = allEnvelopes.filter(e => !e.archivedAt);
 
     if (!settingsRow)
-        throw new Error("Unreachable — layout guards settings row");
+        throw new Error("Unreachable: layout guards settings row");
 
     const fixedExpenses: FixedExpenseInput[] = fixedRows.map((r) => ({
         id: r.id,

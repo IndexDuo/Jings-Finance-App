@@ -70,7 +70,7 @@ export default async function GoalsPage() {
   ]);
 
   const { settings } = configuration.at(format((await getUserToday(user.id)), "yyyy-MM-dd"));
-  if (!settings) throw new Error("Unreachable — layout guards settings row");
+  if (!settings) throw new Error("Unreachable: layout guards settings row");
 
   const today = (await getUserToday(user.id));
   // Local-zone parse for both anchor and per-goal targetDate — see

@@ -59,7 +59,7 @@ export async function confirmFixedExpensePayment(
           fixedExpenseId,
           fixedExpenseDueDate: dueDate,
           paymentMethod: "cash",
-          note: actualCents === 0 ? `${expense.name} — skipped, $0 charged` : expense.name,
+          note: actualCents === 0 ? `${expense.name}: skipped, $0 charged` : expense.name,
         })
         .returning({ id: schema.transactions.id });
 

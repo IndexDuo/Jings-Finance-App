@@ -682,14 +682,14 @@ function FixedExpenseSuggestions({
             {skipped.length > 0 && (
                 <details className="border-t border-separator px-5 py-3">
                     <summary className="cursor-pointer text-[13px] font-medium text-secondary-label">
-                        Skipped bills ({skipped.length}) · undo a skip
+                        Skipped bills ({skipped.length})
                     </summary>
                     <ul className="mt-3 space-y-3">
                         {skipped.map((transaction) => (
                             <li key={transaction.id} className="flex items-center justify-between gap-3">
                                 <div className="text-[13px] text-secondary-label">
-                                    <p>{transaction.note}</p>
-                                    <p>Due {transaction.fixedExpenseDueDate} · $0 charged</p>
+                                    <p>{transaction.note?.replaceAll(" — ", ": ")}</p>
+                                    <p>Due {transaction.fixedExpenseDueDate}, $0 charged</p>
                                 </div>
                                 <button type="button" disabled={isPending}
                                     onClick={() => undoSkip(transaction)}
@@ -715,7 +715,7 @@ function FixedExpenseSuggestions({
                     <button type="button" disabled={isPending}
                         onClick={() => { if (skipExpense) logExpense(skipExpense, true); }}
                         className="w-full rounded-pill bg-system-blue px-4 py-3 text-[15px] font-medium text-white disabled:opacity-60">
-                        {skipExpense?.frequency === "monthly" ? "Skip this month — $0 charged" : "Skip this occurrence — $0 charged"}
+                        {skipExpense?.frequency === "monthly" ? "Skip this month ($0 charged)" : "Skip this occurrence ($0 charged)"}
                     </button>
                     <button type="button" disabled={isPending} onClick={() => setSkipExpense(null)}
                         className="w-full rounded-pill bg-secondary-system-bg px-4 py-3 text-[15px] font-medium text-label disabled:opacity-60">
@@ -1128,7 +1128,10 @@ function TxRow({
         });
     }
 
-    const heading = tx.note || envelopeName || CATEGORY_LABELS[tx.category];
+    const rawHeading = tx.note || envelopeName || CATEGORY_LABELS[tx.category];
+    const heading = tx.fixedExpenseId && tx.amountCents === 0
+        ? rawHeading.replaceAll(" — ", ": ")
+        : rawHeading;
     const isRefund = tx.category !== "income" && tx.category !== "note" && tx.amountCents > 0;
 
     return (

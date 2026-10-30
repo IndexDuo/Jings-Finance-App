@@ -34,9 +34,9 @@ describe("paycheck envelope spending", () => {
     }).envelopeBalances[0];
     const view = describeEnvelopeSpending(balance, [balance], { startDate: "2037-09-01", asOfDate: "2037-09-23", transactions: [] });
     expect(view.weeklyAccumulating).toBe(true);
-    expect(view.details).toContainEqual({ label: "Budget schedule", value: "$52.50 weekly · every Wednesday" });
-    expect(view.details).toContainEqual({ label: "Last refill", value: "Wed, Sep 23, 2037 · +$52.50" });
-    expect(view.details).toContainEqual({ label: "Next refill", value: "Wed, Sep 30, 2037 · +$52.50" });
+    expect(view.details).toContainEqual({ label: "Budget schedule", value: "$52.50 weekly, every Wednesday" });
+    expect(view.details).toContainEqual({ label: "Last refill", value: "Wed, Sep 23, 2037, +$52.50" });
+    expect(view.details).toContainEqual({ label: "Next refill", value: "Wed, Sep 30, 2037, +$52.50" });
   });
   it("uses saved money in the bar total instead of declaring the monthly budget exhausted", () => {
     const balances = scenario();
@@ -67,10 +67,10 @@ describe("paycheck envelope spending", () => {
   it("puts refill and rollover information in details", () => {
     const balances = scenario();
     expect(describeEnvelopeSpending(balances[0], balances, window).details).toContainEqual({
-      label: "Next refill", value: "Sep 26, 2031 \u00b7 +$13.85",
+      label: "Next refill", value: "Sep 26, 2031, +$13.85",
     });
     expect(describeEnvelopeSpending(balances[1], balances, window).details).toContainEqual({
-      label: "Next reset", value: "Sep 26, 2031 \u00b7 refills +$46.15",
+      label: "Next reset", value: "Sep 26, 2031, refills +$46.15",
     });
   });
   it("preserves actual overflow routing and shows unfunded money as short", () => {

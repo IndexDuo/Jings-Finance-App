@@ -557,7 +557,7 @@ export function GoalsClient({
                   {fmt(plan.fundedCents)} funded of {fmt(plan.originalCents)}
                 </p>
                 <p>
-                  Started {fmtDate(plan.startDate)} · target{" "}
+                  Started {fmtDate(plan.startDate)}, target{" "}
                   {fmtDate(plan.dueDate)}
                 </p>
                 {plan.expenseDate && <p>Expense {fmtDate(plan.expenseDate)}</p>}

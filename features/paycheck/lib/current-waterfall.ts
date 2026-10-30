@@ -202,7 +202,7 @@ export function computeCurrentPaycheckWaterfall(args: {
       frequency,
       paycheckAmountCents: baseCents + adjustmentCents,
       detail: payment
-        ? `Paid ${formatMoneyCents(payment.actualCents)} (expected ${formatMoneyCents(payment.expectedCents)})${nextDue ? ` · due ${nextDue}` : ""}`
+        ? `Paid ${formatMoneyCents(payment.actualCents)} (expected ${formatMoneyCents(payment.expectedCents)})${nextDue ? `, due ${nextDue}` : ""}`
         : nextDue
           ? `Due ${nextDue}`
           : undefined,
@@ -305,8 +305,8 @@ export function computeCurrentPaycheckWaterfall(args: {
 
   const reservedExtra = args.extraIncomeCents - (args.currentIncomeInvestmentCents ?? 0);
   if (args.reserveExtraIncome && reservedExtra > 0) {
-    cashAdjustments.push({ id: "extra-income", name: "Extra income · assigned separately",
-      amountCents: reservedExtra, detail: "Held for allocation or already assigned to an envelope, Piggy, recovery, or a plan." });
+    cashAdjustments.push({ id: "extra-income", name: "Extra income",
+      amountCents: reservedExtra, detail: "Assigned separately. Held for allocation or already assigned to an envelope, Piggy, recovery, or a plan." });
   }
   return runWaterfall(
     {

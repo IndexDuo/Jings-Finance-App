@@ -29,15 +29,15 @@ export function describeEnvelopeSpending(
   const details = [
     { label: `Spent since ${date(window.startDate)}`, value: money(spent) },
     { label: "Available now", value: money(balance.availableCents) },
-    { label: "Budget schedule", value: `${money(balance.configuredBudgetCents ?? balance.currentCycleBudgetCents)} ${cycle}${balance.period === "weekly" && balance.rolloverBehavior === "accumulate" && balance.nextAccrualDate ? ` · every ${format(parseLocalIsoDate(balance.nextAccrualDate), "EEEE")}` : ""}` },
+    { label: "Budget schedule", value: `${money(balance.configuredBudgetCents ?? balance.currentCycleBudgetCents)} ${cycle}${balance.period === "weekly" && balance.rolloverBehavior === "accumulate" && balance.nextAccrualDate ? `, every ${format(parseLocalIsoDate(balance.nextAccrualDate), "EEEE")}` : ""}` },
     ...(balance.period === "weekly" && balance.rolloverBehavior === "accumulate" ? [{
       label: "Last refill", value: balance.lastAccrualDate
-        ? `${datedWeekday(balance.lastAccrualDate)} · +${money(balance.lastAccrualAmountCents)}`
+        ? `${datedWeekday(balance.lastAccrualDate)}, +${money(balance.lastAccrualAmountCents)}`
         : "Not yet refilled",
     }] : []),
     { label: balance.rolloverBehavior === "reset" ? "Next reset" : "Next refill",
       value: balance.nextAccrualDate
-        ? `${balance.period === "weekly" && balance.rolloverBehavior === "accumulate" ? datedWeekday(balance.nextAccrualDate) : date(balance.nextAccrualDate)} · ${balance.rolloverBehavior === "reset" ? "refills +" : "+"}${money(balance.nextAccrualAmountCents)}`
+        ? `${balance.period === "weekly" && balance.rolloverBehavior === "accumulate" ? datedWeekday(balance.nextAccrualDate) : date(balance.nextAccrualDate)}, ${balance.rolloverBehavior === "reset" ? "refills +" : "+"}${money(balance.nextAccrualAmountCents)}`
         : "None scheduled" },
   ];
   const explanations = [

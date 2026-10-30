@@ -80,7 +80,7 @@ export default async function LogPage() {
     ]);
 
     if (!settingsRow)
-        throw new Error("Unreachable — layout guards settings row");
+        throw new Error("Unreachable: layout guards settings row");
 
     // parseISO of bare YYYY-MM-DD lands on UTC midnight — drifts paydays by a
     // day in negative-UTC zones. parseLocalIsoDate keeps the anchor on the
