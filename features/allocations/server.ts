@@ -56,13 +56,17 @@ export async function loadAllocationSources(userId: string, todayIso: string, co
     ? snapshot.completedPeriods.reduce((sum, p) => sum + Math.max(0, p.availableCents), 0) : 0;
   const pending = leftoverDeficitCents > 0 ? [] : snapshot.completedPeriods.filter(p => p.availableCents > 0);
   const leftoverRows = pending.flatMap(p => p.rows);
-  sources.unshift(...pending.map(period => ({
-    key: `leftover:${period.periodStartDate}`, kind: "leftover" as const, incomeTransactionId: null,
-    periodStartIso: period.periodStartDate,
-    date: format(addDays(parseLocalIsoDate(configuration.period(period.periodStartDate).next), -1), "yyyy-MM-dd"),
-    label: `Unused envelope budgets - ${period.periodStartDate}`,
-    amountCents: period.availableCents,
-  })));
+  sources.unshift(...pending.map(period => {
+    const names = period.rows.filter(row => row.leftoverCents > 0).map(row => row.name);
+    return {
+      key: `leftover:${period.periodStartDate}`, kind: "leftover" as const, incomeTransactionId: null,
+      periodStartIso: period.periodStartDate,
+      date: format(addDays(parseLocalIsoDate(configuration.period(period.periodStartDate).next), -1), "yyyy-MM-dd"),
+      label: names.length === 1 ? `${names[0]} unused budget`
+        : names.length > 1 ? `Unused budgets from ${names.join(", ")}` : "Unused envelope budgets",
+      amountCents: period.availableCents,
+    };
+  }));
   const currentIncomeCents = income.filter((row) => row.date >= currentPayIso).reduce((sum, row) => sum + row.amountCents, 0);
   return { sources, leftoverDeficitCents, heldLeftoverCents, settings, configuration, currentPayIso, envelopes, leftoverRows, currentIncomeCents, financialSnapshot: snapshot };
 }

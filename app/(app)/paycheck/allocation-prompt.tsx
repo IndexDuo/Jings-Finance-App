@@ -707,28 +707,24 @@ function AllocationForm({
                     Where it came from
                 </summary>
                 <div className="space-y-3 py-2">
-                    {pending.sources?.map((source) => (
+                    {pending.sources?.length ? pending.sources.map((source) => (
                         <div
                             key={source.key}
                             className="flex justify-between gap-4"
                         >
-                            <div>
-                                <p>{source.label}</p>
+                            <div className="min-w-0">
+                                <p className="break-words">{source.label}</p>
                                 <p className="text-[12px] text-secondary-label">
-                                    {
-                                        fmtRange(
-                                            source.date,
-                                            source.date,
-                                        ).split(" – ")[0]
-                                    }
+                                    {source.kind === "leftover"
+                                        ? `Paycheck ${fmtRange(source.periodStartIso, source.date)}`
+                                        : fmtRange(source.date, source.date).split(" – ")[0]}
                                 </p>
                             </div>
                             <span className="shrink-0 tabular-nums">
                                 {fmt(source.amountCents)}
                             </span>
                         </div>
-                    ))}
-                    {pending.rows
+                    )) : pending.rows
                         .filter((row) => row.leftoverCents > 0)
                         .map((row) => (
                             <div

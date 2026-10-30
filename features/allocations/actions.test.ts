@@ -319,6 +319,7 @@ describe("isolated PostgreSQL allocation workflow", () => {
     await db.insert(schema.transactions).values({ userId: state.user, date: "2031-03-14", amountCents: -4467, category: "variable", envelopeId });
     const source = (await loadAllocationSources(state.user, "2031-03-28")).sources.find(s => s.kind === "leftover")!;
     expect(source.amountCents).toBe(9379);
+    expect(source.label).toBe("Groceries unused budget");
     const input = { periodStartIso: "2031-03-14", sources: [source], entries: [
       { targetKind: "piggy", amountCents: 8000 }, { targetKind: "envelope", envelopeId, amountCents: 1379 },
     ] };
