@@ -1371,15 +1371,12 @@ export function WaterfallBreakdown({
                                             : fmt(s.amountCents)}
                                     </span>
                                 </div>
-                                {(spendingOpen || s.fundingWarning) &&
-                                    s.detail &&
-                                    !spending &&
-                                    s.kind !== "investment-advance" && (
-                                        <p className={cn("mt-1 text-[12px]", s.fundingWarning ? "text-system-red" : "ml-5 text-tertiary-label")}>
-                                            {s.detail}
-                                        </p>
-                                    )}
-                                {spending && (
+                                {s.kind === "fixed" && (spendingOpen || s.fundingWarning) && s.detail && (
+                                    <p className={cn("mt-1 text-[12px]", s.fundingWarning ? "text-system-red" : "ml-5 text-tertiary-label")}>
+                                        {s.detail}
+                                    </p>
+                                )}
+                                {spendingOpen && s.kind === "envelope" && spending && (
                                     <div className="mt-2">
                                         <div className="h-1 w-full overflow-hidden rounded-full bg-secondary-system-bg">
                                             <div
@@ -1428,11 +1425,9 @@ export function WaterfallBreakdown({
                     </span>
                 </div>
             </div>
-            {steps.some(
-                (step) =>
-                    step.detail &&
-                    !step.envelopeSpending &&
-                    step.kind !== "investment-advance",
+            {steps.some((step) =>
+                (step.kind === "fixed" && step.detail) ||
+                (step.kind === "envelope" && step.envelopeSpending),
             ) && (
                 <button
                     type="button"
