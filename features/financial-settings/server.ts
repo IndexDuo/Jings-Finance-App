@@ -45,9 +45,12 @@ export async function loadFinancialConfiguration(userId: string, conn: Pick<type
             archivedAt: row.archivedAt ? new Date(row.archivedAt) : null };
         }),
       fixedExpenses: config.fixedExpenses.filter(row => !row.archivedAt).map(row => {
-        // Payments are facts, not configuration. Apply subsequent facts to the
-        // dated schedule without letting a pending Settings edit leak into it.
-        const later = payments.filter(p => p.fixedExpenseId === row.id && p.paidDate <= date && (!versionDate || p.paidDate >= versionDate));
+        // A settings snapshot can still point at an occurrence confirmed before
+        // that revision. Retain those facts too, or Log hides the old confirmed
+        // occurrence without ever advancing to the next reminder. Earlier
+        // occurrences must not roll an explicitly edited future schedule back.
+        const later = payments.filter(p => p.fixedExpenseId === row.id && p.paidDate <= date &&
+          (!versionDate || p.paidDate >= versionDate || (row.nextDueDate && p.dueDate >= row.nextDueDate)));
         const schedule = later.length && row.nextDueDate
           ? resolvePaymentSchedule(later, row.frequency as Period, row.nextDueDate,
               billPolicies.find(p => p.fixedExpenseId === row.id && p.activationPayDate && p.activationPayDate <= date)?.cycleStartDate) : {};

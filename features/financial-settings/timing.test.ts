@@ -277,3 +277,49 @@ describe("recorded money protects the current paycheck", () => {
     expect(await financialConfigurationMatches(state.user, after.versions, db)).toBe(true);
   });
 });
+
+describe("bill confirmations across settings revisions", () => {
+  async function savedBill(dueDate: string, actualCents: number) {
+    await db.insert(schema.users).values({ id: state.user, email: "reminders@example.test" });
+    const [settings] = await db.insert(schema.settings).values({ userId: state.user,
+      takeHomeCents: 150000, payAnchorDate: "2031-10-03" }).returning();
+    const [expense] = await db.insert(schema.fixedExpenses).values({ userId: state.user,
+      name: "Fictional monthly bill", amountCents: 2000, frequency: "monthly",
+      nextDueDate: dueDate, dueDay: Number(dueDate.slice(8)), lastPaidDate: null }).returning();
+    const [transaction] = await db.insert(schema.transactions).values({ userId: state.user,
+      date: "2031-10-01", category: "fixed", amountCents: -actualCents,
+      fixedExpenseId: expense.id, fixedExpenseDueDate: dueDate }).returning();
+    await db.insert(schema.fixedExpensePayments).values({ userId: state.user,
+      fixedExpenseId: expense.id, dueDate, paidDate: "2031-10-01",
+      expectedCents: expense.amountCents, actualCents, transactionId: transaction.id });
+    // A later settings save copied an already-confirmed occurrence into its snapshot.
+    const snapshot = { kind: "financial-config-v1", sequence: 1, settings,
+      fixedExpenses: [expense], envelopes: [] };
+    await db.insert(schema.financialSettingsRevisions).values({ userId: state.user,
+      effectiveDate: "2031-10-16", snapshot });
+    return { expense, snapshot };
+  }
+
+  it.each([
+    { dueDate: "2031-10-01", actualCents: 0, nextDueDate: "2031-11-01" },
+    { dueDate: "2031-09-30", actualCents: 92800, nextDueDate: "2031-10-31" },
+  ])("retains the $actualCents confirmation of $dueDate after a later settings save", async ({ dueDate, actualCents, nextDueDate }) => {
+    await savedBill(dueDate, actualCents);
+    const config = await loadFinancialConfiguration(state.user);
+    expect(config.at("2031-11-01").fixedExpenses[0]).toMatchObject({ nextDueDate, lastPaidDate: "2031-10-01" });
+    // Reading history must not apply a payment before its actual payment date.
+    expect(config.at("2031-09-30").fixedExpenses[0]).toMatchObject({ nextDueDate: dueDate, lastPaidDate: null });
+    expect((await db.select().from(schema.fixedExpensePayments))[0].actualCents).toBe(actualCents);
+    expect((await db.select().from(schema.fixedExpenses))[0].nextDueDate).toBe(dueDate);
+  });
+
+  it("keeps a deliberate future due-date edit deferred and does not roll it backward", async () => {
+    const { expense, snapshot } = await savedBill("2031-10-01", 0);
+    await db.insert(schema.financialSettingsRevisions).values({ userId: state.user,
+      effectiveDate: "2031-11-13", snapshot: { ...snapshot, sequence: 2,
+        fixedExpenses: [{ ...expense, nextDueDate: "2031-12-05", dueDay: 5 }] } });
+    const config = await loadFinancialConfiguration(state.user);
+    expect(config.at("2031-11-01").fixedExpenses[0].nextDueDate).toBe("2031-11-01");
+    expect(config.at("2031-11-13").fixedExpenses[0].nextDueDate).toBe("2031-12-05");
+  });
+});
