@@ -29,6 +29,8 @@ import { syncCreditCardFunding, syncPaycheckFunding } from "@/features/credit-ca
 import { reconcileUncoveredPlanPurchases } from "@/features/goals/purchase-recovery";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
 import { confirmFixedExpensePayment } from "@/features/fixed-expenses/actions";
+import { recordInvestmentTransfer } from "@/features/investments/actions";
+import { loadInvestmentAdvanceForPeriod } from "@/features/investments/server";
 import { completePlan, completionPreviewKey } from "@/features/goals/complete-plan";
 import { loadPlanCompletionPreview } from "@/features/goals/completion-server";
 const incomeId = "20000000-0000-4000-8000-000000000001";
@@ -46,6 +48,214 @@ beforeEach(async () => {
   await db.insert(schema.transactions).values({ id: incomeId, userId: state.user, date: "2031-03-17", amountCents: 6000, category: "income", note: "Fictional cash back" });
 });
 afterAll(async () => state.pg.close());
+
+describe("confirmed uninvested paycheck cash", () => {
+  async function record(actualCents: number) {
+    const summary = await loadCurrentPaycheckSummary(state.user, state.today);
+    return recordInvestmentTransfer({ payPeriodStartDate: summary.periodStartIso, transferDate: state.today,
+      suggestedCents: summary.investmentBudgetCents, actualCents });
+  }
+  async function source() {
+    return (await loadAllocationSources(state.user, state.today)).sources.find(s => s.kind === "uninvested")!;
+  }
+  async function skipAfterInvesting() {
+    const [bill] = await db.insert(schema.fixedExpenses).values({ userId: state.user,
+      name: "Fictional AI subscription", amountCents: 2000, frequency: "monthly", dueDay: 28,
+      nextDueDate: state.today }).returning();
+    const before = await loadCurrentPaycheckSummary(state.user, state.today);
+    expect(await record(before.investmentBudgetCents)).toEqual({ ok: true });
+    expect(await confirmFixedExpensePayment({ fixedExpenseId: bill.id, dueDate: state.today,
+      paidDate: state.today, actualCents: 0 })).toEqual({ ok: true });
+    return { bill, before };
+  }
+  it("releases skipped-bill savings immediately without resaving the recorded investment", async () => {
+    const { before } = await skipAfterInvesting();
+    const [transfer] = await db.select().from(schema.investmentTransfers);
+    expect(transfer).toMatchObject({ actualCents: before.investmentBudgetCents,
+      suggestedCents: before.investmentBudgetCents, uninvestedCents: 2000, uninvestedDate: state.today });
+    expect((await source()).amountCents).toBe(2000);
+    for (let refresh = 0; refresh < 3; refresh++) {
+      const summary = await loadCurrentPaycheckSummary(state.user, state.today);
+      expect(summary.waterfall.investmentPoolCents).toBe(before.investmentBudgetCents);
+      expect(summary.investmentBudgetCents).toBe(before.investmentBudgetCents + 2000);
+      expect(summary.availableAllocation.sources.find(s => s.kind === "uninvested")?.amountCents).toBe(2000);
+    }
+    expect(await db.select().from(schema.investmentTransfers)).toHaveLength(1);
+  });
+  it("retracts the unassigned release when a skip is undone", async () => {
+    await skipAfterInvesting();
+    const [payment] = await db.select().from(schema.fixedExpensePayments);
+    expect(await deleteTransaction({ id: payment.transactionId! })).toEqual({ ok: true });
+    expect((await db.select().from(schema.investmentTransfers))[0].uninvestedCents).toBe(0);
+    expect(await source()).toBeUndefined();
+  });
+  it("keeps the Log release after payday even if Paycheck was not opened first", async () => {
+    await skipAfterInvesting();
+    state.today = "2031-04-11";
+    expect(await source()).toMatchObject({ amountCents: 2000, periodStartIso: "2031-03-28", date: "2031-03-28" });
+  });
+  it("keeps assigned savings in their bucket without releasing them again after an undo and skip", async () => {
+    const { bill } = await skipAfterInvesting();
+    const cash = await source();
+    const input = { periodStartIso: state.today, sources: [cash], entries: [{ targetKind: "piggy", amountCents: 2000 }] };
+    expect(await recordAllocations(input)).toEqual({ ok: true });
+    const [payment] = await db.select().from(schema.fixedExpensePayments);
+    expect(await deleteTransaction({ id: payment.transactionId! })).toEqual({ ok: true });
+    expect(await confirmFixedExpensePayment({ fixedExpenseId: bill.id, dueDate: state.today,
+      paidDate: state.today, actualCents: 0 })).toEqual({ ok: true });
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.settings))[0].piggyBankCents).toBe(2000);
+    expect(await recordAllocations(input)).toMatchObject({ ok: false });
+  });
+  it("does not create uninvested cash before an actual transfer is recorded", async () => {
+    const [bill] = await db.insert(schema.fixedExpenses).values({ userId: state.user, name: "Fictional bill",
+      amountCents: 2000, frequency: "monthly", nextDueDate: state.today }).returning();
+    expect(await confirmFixedExpensePayment({ fixedExpenseId: bill.id, dueDate: state.today,
+      paidDate: state.today, actualCents: 0 })).toEqual({ ok: true });
+    expect(await source()).toBeUndefined();
+    expect(await db.select().from(schema.investmentTransfers)).toHaveLength(0);
+  });
+  it("covers the recorded investment overage before releasing the remaining bill savings", async () => {
+    const [bill] = await db.insert(schema.fixedExpenses).values({ userId: state.user, name: "Fictional bill",
+      amountCents: 2000, frequency: "monthly", nextDueDate: state.today }).returning();
+    const before = await loadCurrentPaycheckSummary(state.user, state.today);
+    expect(await record(before.investmentBudgetCents + 1500)).toEqual({ ok: true });
+    expect(await confirmFixedExpensePayment({ fixedExpenseId: bill.id, dueDate: state.today,
+      paidDate: state.today, actualCents: 0 })).toEqual({ ok: true });
+    expect((await source()).amountCents).toBe(500);
+    expect((await loadInvestmentAdvanceForPeriod({ userId: state.user, periodStartIso: "2031-04-11" })).outstandingBeforeCents).toBe(0);
+  });
+  it("offers confirmed zero-investment cash once and keeps it available across paydays", async () => {
+    expect(await record(0)).toEqual({ ok: true });
+    const cash = await source();
+    expect(cash).toMatchObject({ amountCents: 150000, label: "Uninvested paycheck cash", periodStartIso: "2031-03-28" });
+    expect(await record(0)).toEqual({ ok: true });
+    expect(await source()).toEqual(cash);
+    expect(await db.select().from(schema.investmentTransfers)).toHaveLength(1);
+    expect((await loadCurrentPaycheckSummary(state.user, state.today)).waterfall.investmentPoolCents).toBe(0);
+    state.today = "2031-04-11";
+    expect(await source()).toEqual(cash);
+    expect((await loadCurrentPaycheckSummary(state.user, state.today)).waterfall.investmentPoolCents).toBe(150000);
+    expect((await db.select().from(schema.transactions)).map(t => t.category)).toEqual(["income"]);
+  });
+  it("reconciles partial transfers and edits without duplicating the remainder", async () => {
+    expect(await record(75000)).toEqual({ ok: true });
+    expect((await source()).amountCents).toBe(75000);
+    expect(await record(100000)).toEqual({ ok: true });
+    expect((await source()).amountCents).toBe(50000);
+    expect(await record(150000)).toEqual({ ok: true });
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.investmentTransfers))[0]).toMatchObject({ actualCents: 150000, uninvestedCents: 0 });
+  });
+  it("assigns the remaining cash to destinations once without consuming envelope leftovers", async () => {
+    const [goal] = await db.insert(schema.goals).values({ userId: state.user, name: "Trip", targetCents: 100000,
+      currentCents: 0, targetDate: "2031-09-01", storageType: "hysa", isPaused: true }).returning();
+    await db.insert(schema.envelopes).values({ id: envelopeId, userId: state.user, name: "Groceries", accrualStartDate: state.today,
+      periodAmountCents: 0, period: "monthly", category: "variable", rolloverBehavior: "reset" });
+    await db.insert(schema.envelopePolicyVersions).values({ userId: state.user, envelopeId, effectiveDate: state.today,
+      periodAmountCents: 0, period: "monthly", category: "variable", rolloverBehavior: "reset", recurrence: "recurring" });
+    expect(await record(100000)).toEqual({ ok: true });
+    const cash = await source();
+    const input = { periodStartIso: state.today, sources: [cash], entries: [
+      { targetKind: "goal", goalId: goal.id, amountCents: 10000 },
+      { targetKind: "envelope", envelopeId, amountCents: 15000 },
+      { targetKind: "piggy", amountCents: 25000 },
+    ] };
+    expect(await recordAllocations(input)).toEqual({ ok: true });
+    expect(await recordAllocations(input)).toMatchObject({ ok: false });
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.goals))[0].currentCents).toBe(10000);
+    expect((await db.select().from(schema.settings))[0].piggyBankCents).toBe(25000);
+    const snapshot = await loadFinancialSnapshot({ userId: state.user, asOfDate: state.today });
+    expect(snapshot.envelopeBalances.find(e => e.id === envelopeId)?.availableCents).toBe(15000);
+    expect((await loadCurrentPaycheckSummary(state.user, state.today)).waterfall.investmentPoolCents).toBe(100000);
+    expect(await record(150000)).toMatchObject({ ok: false });
+    await expect(db.update(schema.investmentTransfers).set({ uninvestedCents: 0 })).rejects.toThrow();
+    state.today = "2031-04-11";
+    const report = await loadReconciliationReport(state.user, state.today);
+    expect(report.issues.some(i => i.code === "unmatched-leftover-source")).toBe(false);
+    expect(report.checks.filter(c => c.key.startsWith("uninvested-source:")).every(c => c.status === "matched")).toBe(true);
+  });
+  it("does not count cash returned to investing as another paycheck deposit", async () => {
+    for (let iteration = 0; iteration < 3; iteration++) {
+      expect(await record(0)).toEqual({ ok: true });
+      const cash = await source();
+      expect(cash.amountCents).toBe(150000);
+      expect(await recordAllocations({ periodStartIso: state.today, sources: [cash],
+        entries: [{ targetKind: "investment", amountCents: cash.amountCents }] })).toEqual({ ok: true });
+      const summary = await loadCurrentPaycheckSummary(state.user, state.today);
+      expect(summary.income.totalCents).toBe(150000);
+      expect(summary.investmentBudgetCents).toBe(150000);
+      expect(summary.waterfall.investmentPoolCents).toBe(150000);
+      expect(await source()).toBeUndefined();
+    }
+    expect(await record(150000)).toEqual({ ok: true });
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.investmentTransfers))[0]).toMatchObject({ actualCents: 150000, suggestedCents: 150000 });
+    expect((await loadInvestmentAdvanceForPeriod({ userId: state.user, periodStartIso: "2031-04-11" })).outstandingBeforeCents).toBe(0);
+  });
+  it("rejects stale budgets and foreign-owner or excess assignments", async () => {
+    expect(await recordInvestmentTransfer({ payPeriodStartDate: state.today, transferDate: state.today,
+      suggestedCents: 999999, actualCents: 0 })).toMatchObject({ ok: false });
+    expect(await db.select().from(schema.investmentTransfers)).toHaveLength(0);
+    expect(await record(0)).toEqual({ ok: true });
+    const cash = await source();
+    const other = "10000000-0000-4000-8000-000000000099";
+    await db.insert(schema.users).values({ id: other, email: "investment-other@example.test" });
+    await db.insert(schema.settings).values({ userId: other, takeHomeCents: 10000, payAnchorDate: state.today });
+    await expect(db.insert(schema.paycheckAllocations).values({ userId: other, investmentTransferId: cash.investmentTransferId,
+      periodStartDate: state.today, assignedPayDate: state.today, targetKind: "investment", amountCents: 1 })).rejects.toThrow();
+    await expect(db.insert(schema.paycheckAllocations).values({ userId: state.user, investmentTransferId: cash.investmentTransferId,
+      periodStartDate: state.today, assignedPayDate: state.today, targetKind: "investment", amountCents: 150001 })).rejects.toThrow();
+  });
+  it("keeps newly assigned income earmarked for investing instead of releasing it again", async () => {
+    expect(await record(150000)).toEqual({ ok: true });
+    expect(await recordAllocations(payload([{ targetKind: "investment", amountCents: 6000 }]))).toEqual({ ok: true });
+    const summary = await loadCurrentPaycheckSummary(state.user, state.today);
+    expect(summary.waterfall.investmentPoolCents).toBe(156000);
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.investmentTransfers))[0].actualCents).toBe(150000);
+  });
+  it("uses the audit history to preserve investing choices made before the checkpoint upgrade", async () => {
+    await db.insert(schema.investmentTransfers).values({ userId: state.user, payPeriodStartDate: state.today,
+      transferDate: state.today, suggestedCents: 150000, actualCents: 150000 });
+    await db.insert(schema.paycheckAllocations).values({ userId: state.user, periodStartDate: "2031-03-14",
+      assignedPayDate: state.today, incomeTransactionId: incomeId, targetKind: "investment", amountCents: 6000 });
+    const summary = await loadCurrentPaycheckSummary(state.user, state.today);
+    expect(summary.waterfall.investmentPoolCents).toBe(156000);
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.investmentTransfers))[0]).toMatchObject({
+      suggestedCents: 150000, actualCents: 150000, cashBudgetCents: 156000, uninvestedCents: 0,
+    });
+  });
+  it("reconciles an existing current-paycheck receipt when its first post-upgrade bill is skipped", async () => {
+    const [bill] = await db.insert(schema.fixedExpenses).values({ userId: state.user, name: "Fictional bill",
+      amountCents: 2000, frequency: "monthly", nextDueDate: state.today }).returning();
+    const before = await loadCurrentPaycheckSummary(state.user, state.today);
+    await db.insert(schema.investmentTransfers).values({ userId: state.user, payPeriodStartDate: state.today,
+      transferDate: state.today, suggestedCents: before.investmentBudgetCents, actualCents: before.investmentBudgetCents });
+    expect(await confirmFixedExpensePayment({ fixedExpenseId: bill.id, dueDate: state.today,
+      paidDate: state.today, actualCents: 0 })).toEqual({ ok: true });
+    expect((await source()).amountCents).toBe(2000);
+  });
+  it("does not turn historical estimates into newly available cash", async () => {
+    await db.insert(schema.investmentTransfers).values({ userId: state.user, payPeriodStartDate: "2031-03-14",
+      transferDate: "2031-03-14", suggestedCents: 100000, actualCents: 0, note: "Unverified historical estimate" });
+    expect(await source()).toBeUndefined();
+    expect((await db.select().from(schema.investmentTransfers))[0].uninvestedCents).toBe(0);
+  });
+  it("keeps investment cash private and writable only through server actions", async () => {
+    expect(await record(0)).toEqual({ ok: true });
+    await state.pg.exec("BEGIN; SET LOCAL ROLE authenticated; SELECT set_config('request.jwt.claim.sub', '10000000-0000-4000-8000-000000000099', true)");
+    try {
+      expect((await state.pg.query("SELECT id FROM investment_transfers")).rows).toEqual([]);
+    } finally { await state.pg.exec("ROLLBACK"); }
+    await state.pg.exec("BEGIN; SET LOCAL ROLE anon");
+    try {
+      await expect(state.pg.query("SELECT * FROM investment_transfers")).rejects.toThrow();
+    } finally { await state.pg.exec("ROLLBACK"); }
+  });
+});
 
 it("reallocates a completed plan once without consuming income or envelope leftovers", async () => {
   const [goal] = await db.insert(schema.goals).values({ userId: state.user, name: "Finished trip", targetCents: 5000, targetDate: "2031-03-28", currentCents: 0, storageType: "hysa" }).returning();
@@ -578,6 +788,10 @@ describe("due-date fixed bill funding", () => {
   it("releases a skipped bill exactly once and assigns it without consuming envelope leftovers or creating income", async () => {
     await startNewCycle();
     state.today = "2031-05-01";
+    const before = await loadCurrentPaycheckSummary(state.user, state.today);
+    expect(await recordInvestmentTransfer({ payPeriodStartDate: before.periodStartIso,
+      transferDate: state.today, suggestedCents: before.investmentBudgetCents,
+      actualCents: before.investmentBudgetCents })).toEqual({ ok: true });
     expect(await confirmFixedExpensePayment({ fixedExpenseId: billId, dueDate: state.today, paidDate: state.today, actualCents: 0 })).toEqual({ ok: true });
     const available = await loadAllocationSources(state.user, state.today);
     const source = available.sources.find(s => s.kind === "bill-release")!;
@@ -590,6 +804,7 @@ describe("due-date fixed bill funding", () => {
     expect(await recordAllocations(input)).toEqual({ ok: true });
     expect(await recordAllocations(input)).toMatchObject({ ok: false });
     const after = await loadAllocationSources(state.user, state.today);
+    expect(after.sources.some(s => s.kind === "uninvested")).toBe(false);
     expect(after.sources.filter(s => s.kind === "bill-release")).toHaveLength(0);
     expect(after.sources.find(s => s.kind === "income")?.amountCents).toBe(6000);
     expect(after.financialSnapshot.completedPeriods.every(p => p.assignedCents === 0)).toBe(true);

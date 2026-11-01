@@ -4,6 +4,7 @@ import { PublicActionError, actionError } from "@/lib/action-error";
 
 
 import { getUserToday } from "@/lib/user-timezone";
+import { syncInvestmentCash } from "@/features/investments/cash-sync";
 
 import { format } from "date-fns";
 import { and, eq, isNull, sql } from "drizzle-orm";
@@ -368,6 +369,7 @@ export async function addTransaction(input: unknown): Promise<MutateResult> {
                 deltaCents: piggyImpact(amountCents),
             });
         }
+        await syncInvestmentCash(userId, format(await getUserToday(userId, tx), "yyyy-MM-dd"), tx);
         });
     } catch (error) {
         return {
@@ -532,6 +534,7 @@ export async function updateTransaction(input: unknown): Promise<MutateResult> {
         if (delta !== 0) {
             await applyPiggyDelta(tx, { userId, deltaCents: delta });
         }
+        await syncInvestmentCash(userId, format(await getUserToday(userId, tx), "yyyy-MM-dd"), tx);
         });
     } catch (error) {
         return {
@@ -644,6 +647,7 @@ export async function deleteTransaction(input: unknown): Promise<MutateResult> {
                 })
                 .where(eq(schema.settings.userId, userId));
         }
+        await syncInvestmentCash(userId, format(await getUserToday(userId, tx), "yyyy-MM-dd"), tx);
     });
 
     } catch (error) {

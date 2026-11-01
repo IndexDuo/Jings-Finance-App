@@ -97,7 +97,7 @@ export interface PendingAllocation {
 }
 
 export interface HistoryAllocation {
-    source?: "income" | "leftover" | "plan-release" | "bill-release";
+    source?: "income" | "leftover" | "plan-release" | "bill-release" | "uninvested";
     targetKind: "recovery" | "goal" | "envelope" | "piggy" | "investment";
     label: string;
     amountCents: number;
@@ -131,6 +131,7 @@ export interface HistoryPeriod {
     planTransfers: HistoryDirectedFlow[];
     priorityPlans: HistoryDirectedFlow[];
     piggyTransfers: HistoryDirectedFlow[];
+    investmentAdvances?: HistoryDirectedFlow[];
     allocations: HistoryAllocation[];
 }
 
@@ -159,6 +160,7 @@ export interface PaycheckPageData {
     guiltFreeSources: { label: string; amountCents: number; detail?: string }[];
     waterfallSteps: WaterfallStepData[];
     investmentPoolCents: number;
+    investmentBudgetCents?: number;
     investmentAdvance: {
         outstandingBeforeCents: number;
         appliedThisPaycheckCents: number;
@@ -174,6 +176,8 @@ export interface PaycheckPageData {
     investmentTransfer: {
         actualCents: number;
         suggestedCents: number;
+        uninvestedCents?: number;
+        uninvestedAvailableCents?: number;
         transferDate: string;
         note: string | null;
         overageSource:
@@ -291,6 +295,7 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
         guiltFreeSources,
         waterfallSteps,
         investmentPoolCents,
+        investmentBudgetCents = investmentPoolCents,
         investmentAdvance,
         investmentSourceGoals,
         currentDateIso,
@@ -436,7 +441,7 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                         )}
                         {!investmentTransfer && (
                             <InvestmentStatusCard
-                                suggestedCents={investmentPoolCents}
+                                suggestedCents={investmentBudgetCents}
                                 periodStartIso={periodStartIso}
                                 currentDateIso={currentDateIso}
                                 recorded={investmentTransfer}
@@ -478,7 +483,7 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                 {investmentTransfer && (
                     <GroupedCard>
                         <InvestmentStatusCard
-                            suggestedCents={investmentPoolCents}
+                            suggestedCents={investmentBudgetCents}
                             periodStartIso={periodStartIso}
                             currentDateIso={currentDateIso}
                             recorded={investmentTransfer}
@@ -578,7 +583,7 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
     );
 }
 
-function InvestmentStatusCard({
+export function InvestmentStatusCard({
     suggestedCents,
     periodStartIso,
     currentDateIso,
@@ -726,7 +731,7 @@ function InvestmentStatusCard({
                     >
                         <div className="flex items-center justify-between gap-4">
                             <span className="text-[14px] text-secondary-label">
-                                Available to invest
+                                Investment budget
                             </span>
                             <span className="text-[15px] font-medium tabular-nums text-label">
                                 {fmt(suggestedCents)}
@@ -743,12 +748,16 @@ function InvestmentStatusCard({
                             </span>
                         </div>
                         <p className="mt-3 text-[12px] leading-relaxed text-secondary-label">
-                            {!recorded
+                            {(recorded?.uninvestedCents ?? 0) > 0
+                                ? (recorded?.uninvestedAvailableCents ?? 0) > 0
+                                    ? `${fmt(recorded!.uninvestedAvailableCents!)} is in Money to assign. Choose its destination there.`
+                                    : "The cash left uninvested has been assigned. See History for its destinations."
+                                : !recorded
                                 ? "The suggestion is not counted as invested until you record the real transfer."
                                 : differenceCents === 0
                                   ? `Recorded ${fmtDate(recorded.transferDate)}. The actual transfer matches the current suggestion.`
                                   : differenceCents! < 0
-                                    ? `${fmt(Math.abs(differenceCents!))} remains unassigned; the app does not assume it was invested.`
+                                    ? `${fmt(Math.abs(differenceCents!))} was not invested. Update the actual transfer to put the confirmed leftover into Money to assign.`
                                     : recorded.overageSource ===
                                         "future-investing"
                                       ? `${fmt(differenceCents!)} will reduce future investing after recovery and plans.`
@@ -791,6 +800,7 @@ function InvestmentStatusCard({
                         Enter what you really moved to an investment account.
                         This is a transfer record, not an expense, and it can
                         differ from the {fmt(suggestedCents)} suggestion.
+                        {" "}Any money left uninvested will appear in Money to assign.
                     </p>
                     <div>
                         <label className="mb-1 block text-[13px] font-medium text-secondary-label">

@@ -212,6 +212,7 @@ export const paycheckAllocations = pgTable("paycheck_allocations", {
     ),
     releasedPlanId: uuid("released_plan_id").references(() => planCompletions.goalId, { onDelete: "restrict" }),
     releasedBillId: uuid("released_bill_id").references(() => billSettlements.id, { onDelete: "restrict" }),
+    investmentTransferId: uuid("investment_transfer_id").references(() => investmentTransfers.id, { onDelete: "restrict" }),
     // The paycheck receiving the allocation, even for backdated income.
     // Null preserves legacy allocations' existing investment behavior.
     assignedPayDate: date("assigned_pay_date"),
@@ -494,6 +495,9 @@ export const investmentTransfers = pgTable(
         transferDate: date("transfer_date").notNull(),
         suggestedCents: integer("suggested_cents").notNull(),
         actualCents: integer("actual_cents").notNull(),
+        uninvestedCents: integer("uninvested_cents").notNull().default(0),
+        uninvestedDate: date("uninvested_date"),
+        cashBudgetCents: integer("cash_budget_cents"),
         // Only relevant when actual_cents exceeds suggested_cents.
         // future-investing | existing-cash | recovery | goal
         overageSource: text("overage_source").notNull().default("future-investing"),

@@ -8,6 +8,9 @@ import { loadFinancialConfiguration } from "@/features/financial-settings/server
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { calendarDateSchema } from "@/lib/date-schema";
+import { format } from "date-fns";
+import { getUserToday } from "@/lib/user-timezone";
+import { syncInvestmentCash } from "@/features/investments/cash-sync";
 
 import { db, schema } from "@/lib/db";
 import { getAppAuthUser } from "@/lib/supabase/app-user";
@@ -74,6 +77,7 @@ export async function confirmFixedExpensePayment(
           ? `Skipped ${expense.name} for this occurrence; $0 charged`
           : `Confirmed ${expense.name} from Log`,
       });
+      await syncInvestmentCash(userId, format(await getUserToday(userId, tx), "yyyy-MM-dd"), tx);
     });
   } catch (error) {
     return {

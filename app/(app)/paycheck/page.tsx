@@ -69,6 +69,7 @@ export default async function PaycheckPage() {
         .select({
             actualCents: schema.investmentTransfers.actualCents,
             suggestedCents: schema.investmentTransfers.suggestedCents,
+            uninvestedCents: schema.investmentTransfers.uninvestedCents,
             transferDate: schema.investmentTransfers.transferDate,
             note: schema.investmentTransfers.note,
             overageSource: schema.investmentTransfers.overageSource,
@@ -139,6 +140,7 @@ export default async function PaycheckPage() {
                     isNull(schema.paycheckAllocations.incomeTransactionId),
                     isNull(schema.paycheckAllocations.releasedPlanId),
                     isNull(schema.paycheckAllocations.releasedBillId),
+                    isNull(schema.paycheckAllocations.investmentTransferId),
                     eq(
                         schema.paycheckAllocations.periodStartDate,
                         lastCompletedPeriodStartIso,
@@ -297,6 +299,7 @@ export default async function PaycheckPage() {
             incomeTransactionId: schema.paycheckAllocations.incomeTransactionId,
             releasedPlanId: schema.paycheckAllocations.releasedPlanId,
             releasedBillId: schema.paycheckAllocations.releasedBillId,
+            investmentTransferId: schema.paycheckAllocations.investmentTransferId,
             targetKind: schema.paycheckAllocations.targetKind,
             goalId: schema.paycheckAllocations.goalId,
             envelopeId: schema.paycheckAllocations.envelopeId,
@@ -319,6 +322,7 @@ export default async function PaycheckPage() {
         historyPriorityFundingRows,
         historyPiggyGoalRows,
         historyPiggyPriorityRows,
+        historyInvestmentAdvanceRows,
     ] =
         await Promise.all([
             db
@@ -381,6 +385,11 @@ export default async function PaycheckPage() {
                         eq(schema.creditCardFundingEvents.kind, "piggy-transfer"),
                     ),
                 ),
+            db.select({ date: schema.investmentAdvanceApplications.payPeriodStartDate,
+                amountCents: schema.investmentAdvanceApplications.amountCents })
+                .from(schema.investmentAdvanceApplications).where(and(
+                    eq(schema.investmentAdvanceApplications.userId, userId),
+                    between(schema.investmentAdvanceApplications.payPeriodStartDate, historyFromIso, todayIso))),
         ]);
 
     const goalNameById = new Map(allGoalNameRows.map((g) => [g.id, g.name]));
@@ -395,7 +404,7 @@ export default async function PaycheckPage() {
     for (const r of allocationRows) {
         const list = allocationsByPeriodStart.get(r.periodStartDate) ?? [];
         list.push({
-            source: r.releasedBillId ? "bill-release" : r.releasedPlanId ? "plan-release" : r.incomeTransactionId ? "income" : "leftover",
+            source: r.investmentTransferId ? "uninvested" : r.releasedBillId ? "bill-release" : r.releasedPlanId ? "plan-release" : r.incomeTransactionId ? "income" : "leftover",
             targetKind: r.targetKind as
                 | "recovery"
                 | "goal"
@@ -486,6 +495,8 @@ export default async function PaycheckPage() {
             planTransfers,
             priorityPlans,
             piggyTransfers,
+            investmentAdvances: historyInvestmentAdvanceRows.filter(row => row.date >= startIso && row.date <= endIso && row.amountCents > 0)
+                .map(row => ({ ...row, label: "Applied from this paycheck" })),
         };
     }
 
@@ -514,6 +525,7 @@ export default async function PaycheckPage() {
             planTransfers: agg.planTransfers,
             priorityPlans: agg.priorityPlans,
             piggyTransfers: agg.piggyTransfers,
+            investmentAdvances: agg.investmentAdvances,
             allocations: allocationsByPeriodStart.get(startIsoStr) ?? [],
         });
     }
@@ -554,6 +566,7 @@ export default async function PaycheckPage() {
             planTransfers: agg.planTransfers,
             priorityPlans: agg.priorityPlans,
             piggyTransfers: agg.piggyTransfers,
+            investmentAdvances: agg.investmentAdvances,
             // Aggregate allocations falling in this calendar month.
             allocations: Array.from(allocationsByPeriodStart.entries())
                 .filter(([d]) => d >= effectiveStartIso && d <= endIsoStr)
@@ -609,6 +622,7 @@ export default async function PaycheckPage() {
             };
           }),
         investmentPoolCents: waterfall.investmentPoolCents,
+        investmentBudgetCents: summary.investmentBudgetCents,
         investmentAdvance: {
             outstandingBeforeCents: investmentAdvance.outstandingBeforeCents,
             appliedThisPaycheckCents:
@@ -628,6 +642,8 @@ export default async function PaycheckPage() {
         investmentTransfer: investmentTransfer
             ? {
                   ...investmentTransfer,
+                  uninvestedAvailableCents: availableAllocation.sources.filter(s => s.kind === "uninvested" && s.periodStartIso === periodStartIso)
+                    .reduce((sum, s) => sum + s.amountCents, 0),
                   overageSource: investmentTransfer.overageSource as
                       | "future-investing"
                       | "existing-cash"

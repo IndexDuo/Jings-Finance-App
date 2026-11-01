@@ -6,6 +6,7 @@ import { parseLocalIsoDate } from "@/lib/dates";
 import { loadFinancialSnapshot } from "@/features/allowance/server";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
 import { unassignedIncomeSources, type AllocationSource } from "./lib/sources";
+import { syncInvestmentCash } from "@/features/investments/cash-sync";
 
 export type AllocationDb = Pick<typeof db, "select" | "insert" | "update" | "execute">;
 
@@ -16,12 +17,20 @@ export async function lockAllocationOwner(tx: AllocationDb, userId: string) {
     .where(eq(schema.settings.userId, userId)).for("update");
 }
 
-export async function loadAllocationSources(userId: string, todayIso: string, conn: AllocationDb = db) {
+export async function loadAllocationSources(userId: string, todayIso: string, conn?: AllocationDb): Promise<Awaited<ReturnType<typeof readAllocationSources>>> {
+  if (!conn) return db.transaction(tx => loadAllocationSources(userId, todayIso, tx));
+  await lockAllocationOwner(conn, userId);
+  await syncInvestmentCash(userId, todayIso, conn);
+  return readAllocationSources(userId, todayIso, conn);
+}
+
+/** Read sources while assembling the budget used to reconcile investment cash. */
+export async function readAllocationSources(userId: string, todayIso: string, conn: AllocationDb = db) {
   const configuration = await loadFinancialConfiguration(userId, conn);
   const { settings } = configuration.at(configuration.period(todayIso).current);
   if (!settings) throw new Error("Settings are missing");
   const currentPayIso = configuration.period(todayIso).current;
-  const [income, allocations, envelopes, snapshot, releases] = await Promise.all([
+  const [income, allocations, envelopes, snapshot, releases, investmentTransfers] = await Promise.all([
     conn.select().from(schema.transactions).where(and(eq(schema.transactions.userId, userId), eq(schema.transactions.category, "income"), lte(schema.transactions.date, todayIso))),
     conn.select().from(schema.paycheckAllocations).where(eq(schema.paycheckAllocations.userId, userId)),
     Promise.resolve(configuration.at(todayIso).envelopes.filter(e => !e.archivedAt || format(e.archivedAt, "yyyy-MM-dd") > todayIso)),
@@ -30,8 +39,19 @@ export async function loadAllocationSources(userId: string, todayIso: string, co
       cents: schema.planCompletions.releasedCents, name: schema.goals.name }).from(schema.planCompletions)
       .innerJoin(schema.goals, eq(schema.goals.id, schema.planCompletions.goalId))
       .where(and(eq(schema.planCompletions.userId, userId), lte(schema.planCompletions.finishedDate, todayIso))),
+    conn.select().from(schema.investmentTransfers).where(eq(schema.investmentTransfers.userId, userId)),
   ]);
   const sources: AllocationSource[] = unassignedIncomeSources({ income, allocations, payAnchor: settings.payAnchorDate, todayIso, periodForDate: date => configuration.period(date).current });
+  for (const transfer of investmentTransfers) {
+    if (!transfer.uninvestedDate || transfer.uninvestedDate > todayIso) continue;
+    const assigned = allocations.filter(a => a.investmentTransferId === transfer.id).reduce((sum, a) => sum + a.amountCents, 0);
+    if (assigned > transfer.uninvestedCents) throw new Error("Uninvested cash has excess assignments. Review its allocation history.");
+    if (transfer.uninvestedCents > assigned) sources.push({
+      key: `uninvested:${transfer.id}`, kind: "uninvested", investmentTransferId: transfer.id,
+      incomeTransactionId: null, periodStartIso: transfer.payPeriodStartDate, date: transfer.uninvestedDate,
+      label: "Uninvested paycheck cash", amountCents: transfer.uninvestedCents - assigned,
+    });
+  }
   for (const release of releases) {
     const assigned = allocations.filter(a => a.releasedPlanId === release.goalId).reduce((sum, a) => sum + a.amountCents, 0);
     if (assigned > release.cents) throw new Error("A plan release has excess assignments. Review its funding history.");
@@ -71,8 +91,8 @@ export async function loadAllocationSources(userId: string, todayIso: string, co
   return { sources, leftoverDeficitCents, heldLeftoverCents, settings, configuration, currentPayIso, envelopes, leftoverRows, currentIncomeCents, financialSnapshot: snapshot };
 }
 
-export async function loadAssignedInvestments(userId: string, periodStartIso: string) {
-  const rows = await db.select().from(schema.paycheckAllocations)
+export async function loadAssignedInvestments(userId: string, periodStartIso: string, conn: Pick<typeof db, "select"> = db) {
+  const rows = await conn.select().from(schema.paycheckAllocations)
     .where(and(eq(schema.paycheckAllocations.userId, userId), eq(schema.paycheckAllocations.assignedPayDate, periodStartIso), eq(schema.paycheckAllocations.targetKind, "investment")));
   return {
     totalCents: rows.reduce((sum, row) => sum + row.amountCents, 0),

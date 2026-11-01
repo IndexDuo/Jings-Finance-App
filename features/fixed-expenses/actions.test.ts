@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
+vi.mock("@/features/investments/cash-sync", () => ({ syncInvestmentCash: vi.fn() }));
+vi.mock("@/lib/user-timezone", () => ({ getUserToday: async () => new Date(2026, 8, 18) }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: async () => ({ auth: { getUser: mocks.getUser } }) }));
 vi.mock("./payment-ledger", () => ({ linkFixedExpensePayment: mocks.link }));
 vi.mock("@/features/financial-settings/server", () => ({ loadFinancialConfiguration: async () => {

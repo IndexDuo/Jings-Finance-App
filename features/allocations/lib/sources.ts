@@ -3,7 +3,8 @@ import { parseLocalIsoDate, previousPayDate } from "@/lib/dates";
 
 export interface AllocationSource {
   key: string;
-  kind: "income" | "leftover" | "plan-release" | "bill-release";
+  kind: "income" | "leftover" | "plan-release" | "bill-release" | "uninvested";
+  investmentTransferId?: string | null;
   releasedPlanId?: string | null;
   releasedBillId?: string | null;
   incomeTransactionId: string | null;

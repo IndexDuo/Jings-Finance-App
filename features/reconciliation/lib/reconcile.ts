@@ -11,12 +11,13 @@ export interface ReconciliationInput {
   savingTransfers: (Amount & { goalId: string; payDate: string })[];
   transactions: (Amount & { category: string; date: string })[];
   allocations: (Amount & { periodStartDate: string; incomeTransactionId: string | null;
-    releasedPlanId?: string | null; releasedBillId?: string | null;
+    releasedPlanId?: string | null; releasedBillId?: string | null; investmentTransferId?: string | null;
     targetKind: string; goalId: string | null; envelopeId: string | null; commitmentId: string | null })[];
   completedPeriods: { periodStartDate: string; releasedCents: number; assignedCents: number }[];
   billReleases?: { id: string; fixedExpenseId: string; dueDate: string; reservedCents: number; releasedCents: number; usedCents: number; shortfallCents: number; actualCents: number }[];
   billFundingEvents?: { id: string; fixedExpenseId: string; dueDate: string; amountCents: number }[];
   planReleases?: { goalId: string; releasedCents: number; releaseEventId: string | null }[];
+  investmentCash?: { id: string; uninvestedCents: number }[];
 }
 export interface ReconciliationCheck {
   key: string;
@@ -93,7 +94,7 @@ export function reconcileMoney(input: ReconciliationInput) {
   for (const period of input.completedPeriods) {
     // Unassigned money is legitimate, so only excess assignments are a mismatch.
     check(`leftover-source:${period.periodStartDate}`, `Leftovers from ${period.periodStartDate}: excess assignments`,
-      0, Math.max(0, period.assignedCents - period.releasedCents), input.allocations.filter(row => !row.incomeTransactionId && !row.releasedPlanId && !row.releasedBillId && row.periodStartDate === period.periodStartDate).map(row => row.id));
+      0, Math.max(0, period.assignedCents - period.releasedCents), input.allocations.filter(row => !row.incomeTransactionId && !row.releasedPlanId && !row.releasedBillId && !row.investmentTransferId && row.periodStartDate === period.periodStartDate).map(row => row.id));
   }
   const periodIds = new Set(input.completedPeriods.map(row => row.periodStartDate));
   const incomeIds = new Set(input.allocations.flatMap(row => row.incomeTransactionId ? [row.incomeTransactionId] : []));
@@ -112,7 +113,7 @@ export function reconcileMoney(input: ReconciliationInput) {
       : row.targetKind === "envelope" ? envelopes.has(row.envelopeId ?? "")
       : row.targetKind === "piggy" || row.targetKind === "investment";
     if (!valid) issue("missing-destination", "An assignment has an unknown or missing destination.", [row.id]);
-    if (!row.incomeTransactionId && !row.releasedPlanId && !row.releasedBillId && !periodIds.has(row.periodStartDate)) issue("unmatched-leftover-source", "An assignment's leftover period is absent from the recorded replay.", [row.id]);
+    if (!row.incomeTransactionId && !row.releasedPlanId && !row.releasedBillId && !row.investmentTransferId && !periodIds.has(row.periodStartDate)) issue("unmatched-leftover-source", "An assignment's leftover period is absent from the recorded replay.", [row.id]);
     if (row.releasedPlanId && !input.planReleases?.some(r => r.goalId === row.releasedPlanId)) issue("missing-plan-release", "An assignment references an unknown completed plan release.", [row.id]);
   }
   for (const release of input.planReleases ?? []) {
@@ -133,6 +134,12 @@ export function reconcileMoney(input: ReconciliationInput) {
   }
   for (const row of input.allocations) {
     if (row.releasedBillId && !input.billReleases?.some(r => r.id === row.releasedBillId)) issue("missing-bill-release", "An assignment references an unknown bill reserve release.", [row.id]);
+    if (row.investmentTransferId && !input.investmentCash?.some(r => r.id === row.investmentTransferId)) issue("missing-investment-cash-source", "An assignment references unknown uninvested cash.", [row.id]);
+  }
+  for (const cash of input.investmentCash ?? []) {
+    const assigned = input.allocations.filter(a => a.investmentTransferId === cash.id);
+    check(`uninvested-source:${cash.id}`, "Uninvested cash: excess assignments", 0,
+      Math.max(0, total(assigned) - cash.uninvestedCents), assigned.map(a => a.id));
   }
   const paydayKeys = new Map<string, string>();
   for (const row of input.savingTransfers) {

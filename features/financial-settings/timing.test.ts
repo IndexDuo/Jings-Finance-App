@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PGlite } from "@electric-sql/pglite";
@@ -42,7 +42,7 @@ async function currentInput(): Promise<OnboardingInput> {
 }
 beforeAll(async () => {
   await state.pg.exec("CREATE ROLE authenticated; CREATE ROLE anon; CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;");
-  await state.pg.exec(readFileSync("lib/db/migrations/0000_public_baseline.sql", "utf8"));
+  for (const name of readdirSync("lib/db/migrations").filter(n => n.endsWith(".sql")).sort()) await state.pg.exec(readFileSync(`lib/db/migrations/${name}`, "utf8"));
 }, 30000);
 beforeEach(async () => {
   state.today = "2031-03-18";

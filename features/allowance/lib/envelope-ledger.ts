@@ -26,7 +26,7 @@ export interface SnapshotArgs {
   policies: readonly EnvelopePolicyVersion[];
   transactions: readonly SnapshotTransaction[];
   fundingEvents?: readonly SnapshotFundingEvent[];
-  allocations?: readonly { periodStartDate: string; incomeTransactionId: string | null; releasedPlanId?: string | null; releasedBillId?: string | null; amountCents: number }[];
+  allocations?: readonly { periodStartDate: string; incomeTransactionId: string | null; releasedPlanId?: string | null; releasedBillId?: string | null; investmentTransferId?: string | null; amountCents: number }[];
   piggyAvailableCents: number;
   asOfDate: string;
   /** The first tracked partial paycheck receives one opening budget, not backfilled cycles. */
@@ -144,7 +144,7 @@ export function replayEnvelopeLedger(args: SnapshotArgs): FinancialSnapshot {
       if (currentPeriod) {
         const releasedCents = sum(rows.map(r => r.leftoverCents));
         const assignedCents = sum((args.allocations ?? []).filter(a =>
-          !a.incomeTransactionId && !a.releasedPlanId && !a.releasedBillId && a.periodStartDate === currentPeriod).map(a => a.amountCents));
+          !a.incomeTransactionId && !a.releasedPlanId && !a.releasedBillId && !a.investmentTransferId && a.periodStartDate === currentPeriod).map(a => a.amountCents));
         completedPeriods.push({ periodStartDate: currentPeriod, rows, releasedCents,
           assignedCents, availableCents: add(releasedCents, -assignedCents) });
       }

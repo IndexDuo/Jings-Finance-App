@@ -115,6 +115,8 @@ export function computeCurrentPaycheckWaterfall(args: {
   allocatedInvestmentCents?: number;
   currentIncomeInvestmentCents?: number;
   additionalAllowanceCents?: number;
+  /** Confirmed uninvested cash is protected until the user assigns it. */
+  uninvestedCents?: number;
   payAnchor: Date;
   currentPay: Date;
   periodStartIso: string;
@@ -304,6 +306,10 @@ export function computeCurrentPaycheckWaterfall(args: {
     : [];
 
   const reservedExtra = args.extraIncomeCents - (args.currentIncomeInvestmentCents ?? 0);
+  if ((args.uninvestedCents ?? 0) > 0) {
+    cashAdjustments.push({ id: "uninvested-cash", name: "Uninvested cash",
+      amountCents: args.uninvestedCents!, detail: "Cash not invested. Unassigned money appears under Money to assign; saved choices are in History." });
+  }
   if (args.reserveExtraIncome && reservedExtra > 0) {
     cashAdjustments.push({ id: "extra-income", name: "Extra income",
       amountCents: reservedExtra, detail: "Assigned separately. Held for allocation or already assigned to an envelope, Piggy, recovery, or a plan." });

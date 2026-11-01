@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
@@ -13,7 +13,7 @@ beforeAll(async () => {
     CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     CREATE TABLE auth.users (id uuid PRIMARY KEY, is_anonymous boolean, created_at timestamptz);
     CREATE TABLE auth.sessions (user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE);`);
-  await pg.exec(readFileSync("lib/db/migrations/0000_public_baseline.sql", "utf8"));
+  for (const name of readdirSync("lib/db/migrations").filter(n => n.endsWith(".sql")).sort()) await pg.exec(readFileSync(`lib/db/migrations/${name}`, "utf8"));
   await pg.exec(`CREATE TABLE finance_private.demo_installation (project_url text PRIMARY KEY);
     INSERT INTO finance_private.demo_installation VALUES ('http://localhost:54323');`);
   await pg.exec(readFileSync("scripts/demo/expiry.sql", "utf8"));

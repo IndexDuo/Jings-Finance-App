@@ -10,13 +10,14 @@ import { db, schema } from "@/lib/db";
 export async function loadInvestmentAdvanceForPeriod(args: {
   userId: string;
   periodStartIso: string;
+  conn?: Pick<typeof db, "select">;
 }) {
-  const { userId, periodStartIso } = args;
+  const { userId, periodStartIso, conn = db } = args;
   const [[transferTotals], [applicationTotals], currentApplication] =
     await Promise.all([
-      db
+      conn
         .select({
-          cents: sql<number>`coalesce(sum(greatest(0, ${schema.investmentTransfers.actualCents} - ${schema.investmentTransfers.suggestedCents})), 0)`,
+          cents: sql<number>`coalesce(sum(greatest(0, ${schema.investmentTransfers.actualCents} - greatest(${schema.investmentTransfers.suggestedCents}, coalesce(${schema.investmentTransfers.cashBudgetCents}, ${schema.investmentTransfers.suggestedCents})))), 0)`,
         })
         .from(schema.investmentTransfers)
         .where(
@@ -26,7 +27,7 @@ export async function loadInvestmentAdvanceForPeriod(args: {
             lt(schema.investmentTransfers.payPeriodStartDate, periodStartIso),
           ),
         ),
-      db
+      conn
         .select({
           cents: sql<number>`coalesce(sum(${schema.investmentAdvanceApplications.amountCents}), 0)`,
         })
@@ -40,7 +41,7 @@ export async function loadInvestmentAdvanceForPeriod(args: {
             ),
           ),
         ),
-      db
+      conn
         .select({
           amountCents: schema.investmentAdvanceApplications.amountCents,
         })

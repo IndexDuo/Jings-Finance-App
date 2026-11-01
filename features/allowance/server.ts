@@ -67,6 +67,7 @@ export async function loadFinancialSnapshot(args: {
         incomeTransactionId: schema.paycheckAllocations.incomeTransactionId,
         releasedPlanId: schema.paycheckAllocations.releasedPlanId,
         releasedBillId: schema.paycheckAllocations.releasedBillId,
+        investmentTransferId: schema.paycheckAllocations.investmentTransferId,
         amountCents: schema.paycheckAllocations.amountCents,
       }).from(schema.paycheckAllocations).where(eq(schema.paycheckAllocations.userId, userId)),
     ]);

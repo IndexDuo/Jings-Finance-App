@@ -4,22 +4,22 @@ import { db, schema } from "@/lib/db";
 import { summarizePlans } from "./lib/summary";
 
 /** Shared saved, purchased and funded totals for Plans and paycheck consumers. */
-export async function loadPlanSummaries(userId: string) {
+export async function loadPlanSummaries(userId: string, conn: Pick<typeof db, "select"> = db) {
   const [plans, purchases, funding, completions] = await Promise.all([
-    db.select().from(schema.goals).where(eq(schema.goals.userId, userId)).orderBy(schema.goals.targetDate),
-    loadGoalPurchaseSummaryById(userId),
-    db.select({ goalId: schema.goalFundingEvents.goalId, kind: schema.goalFundingEvents.kind,
+    conn.select().from(schema.goals).where(eq(schema.goals.userId, userId)).orderBy(schema.goals.targetDate),
+    loadGoalPurchaseSummaryById(userId, conn),
+    conn.select({ goalId: schema.goalFundingEvents.goalId, kind: schema.goalFundingEvents.kind,
       amountCents: schema.goalFundingEvents.amountCents }).from(schema.goalFundingEvents)
       .where(eq(schema.goalFundingEvents.userId, userId)),
-    db.select({ goalId: schema.planCompletions.goalId }).from(schema.planCompletions).where(eq(schema.planCompletions.userId, userId)),
+    conn.select({ goalId: schema.planCompletions.goalId }).from(schema.planCompletions).where(eq(schema.planCompletions.userId, userId)),
   ]);
   return summarizePlans(plans, purchases, funding, new Set(completions.map(c => c.goalId)));
 }
 
 /** Canonical purchase and linked-recovery totals for each parent plan. */
-export async function loadGoalPurchaseSummaryById(userId: string) {
+export async function loadGoalPurchaseSummaryById(userId: string, conn: Pick<typeof db, "select"> = db) {
   const [purchaseRows, recoveryRows] = await Promise.all([
-    db
+    conn
       .select({
         goalId: schema.transactions.goalId,
         purchaseCents: sql<number>`greatest(0, -coalesce(sum(${schema.transactions.amountCents}), 0))`,
@@ -33,7 +33,7 @@ export async function loadGoalPurchaseSummaryById(userId: string) {
         ),
       )
       .groupBy(schema.transactions.goalId),
-    db
+    conn
       .select({
         goalId: schema.transactions.goalId,
         recoveryOriginalCents: sql<number>`coalesce(sum(${schema.creditCardCommitments.originalCents}), 0)`,

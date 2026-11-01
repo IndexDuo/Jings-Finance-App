@@ -16,6 +16,7 @@ import { db, schema } from "@/lib/db";
 import { getAppAuthUser } from "@/lib/supabase/app-user";
 import { todayInUserTz } from "@/lib/dates";
 import { loadAllocationSources, lockAllocationOwner } from "./server";
+import { preserveInvestmentAllocation } from "@/features/investments/cash-sync";
 import { splitAllocationSources } from "./lib/sources";
 import { fundUncoveredPlanPurchases } from "@/features/goals/purchase-recovery";
 
@@ -148,12 +149,14 @@ export async function recordAllocations(input: unknown): Promise<MutateResult> {
             }
             for (const movement of movements) {
                 const { source, amountCents, targetKind, goalId, envelopeId, commitmentId } = movement;
-                const note = (source.kind === "plan-release" || source.kind === "bill-release") ? source.label : source.kind === "income" ? `Extra income: ${source.label} (${source.date})` : `Unused envelope budget from ${source.periodStartIso}`;
+                const note = source.kind === "uninvested" ? `Uninvested cash from paycheck ${source.periodStartIso}`
+                    : (source.kind === "plan-release" || source.kind === "bill-release") ? source.label : source.kind === "income" ? `Extra income: ${source.label} (${source.date})` : `Unused envelope budget from ${source.periodStartIso}`;
                 await tx.insert(schema.paycheckAllocations).values({
                     userId, periodStartDate: source.periodStartIso,
                     incomeTransactionId: source.incomeTransactionId, assignedPayDate: available.currentPayIso,
                     releasedPlanId: source.releasedPlanId ?? null,
                     releasedBillId: source.releasedBillId ?? null,
+                    investmentTransferId: source.investmentTransferId ?? null,
                     targetKind, goalId: goalId ?? null, envelopeId: envelopeId ?? null,
                     commitmentId: commitmentId ?? null, amountCents,
                 });
@@ -176,6 +179,10 @@ export async function recordAllocations(input: unknown): Promise<MutateResult> {
             for (const goalId of new Set(movements.flatMap(m => m.goalId && m.amountCents > 0 ? [m.goalId] : []))) {
                 await fundUncoveredPlanPurchases(tx, userId, goalId);
             }
+            await preserveInvestmentAllocation(userId, available.currentPayIso,
+                movements.filter(m => m.targetKind === "investment" &&
+                    !(m.source.kind === "uninvested" && m.source.periodStartIso === available.currentPayIso))
+                    .reduce((sum, m) => sum + m.amountCents, 0), tx);
         });
     } catch (error) {
         return { ok: false, error: actionError(error, "Could not save allocations") };
@@ -220,6 +227,7 @@ export async function updateAllocations(input: unknown): Promise<MutateResult> {
                 isNull(schema.paycheckAllocations.incomeTransactionId),
                 isNull(schema.paycheckAllocations.releasedPlanId),
                 isNull(schema.paycheckAllocations.releasedBillId),
+                isNull(schema.paycheckAllocations.investmentTransferId),
                 eq(schema.paycheckAllocations.periodStartDate, periodStartIso),
             ),
         );
@@ -486,6 +494,7 @@ export async function updateAllocations(input: unknown): Promise<MutateResult> {
             eq(schema.paycheckAllocations.userId, userId), eq(schema.paycheckAllocations.periodStartDate, periodStartIso),
             isNull(schema.paycheckAllocations.incomeTransactionId), isNull(schema.paycheckAllocations.releasedPlanId),
             isNull(schema.paycheckAllocations.releasedBillId),
+            isNull(schema.paycheckAllocations.investmentTransferId),
         ));
         if (freshAllocations.length !== existingRows.length || freshAllocations.some(row =>
             !existingRows.some(old => old.id === row.id && old.amountCents === row.amountCents)))
@@ -516,6 +525,7 @@ export async function updateAllocations(input: unknown): Promise<MutateResult> {
                 isNull(schema.paycheckAllocations.incomeTransactionId),
                 isNull(schema.paycheckAllocations.releasedPlanId),
                 isNull(schema.paycheckAllocations.releasedBillId),
+                isNull(schema.paycheckAllocations.investmentTransferId),
                     eq(
                         schema.paycheckAllocations.periodStartDate,
                         periodStartIso,
@@ -610,6 +620,9 @@ export async function updateAllocations(input: unknown): Promise<MutateResult> {
         for (const [goalId, delta] of goalDeltas) {
             if (delta > 0) await fundUncoveredPlanPurchases(tx, userId, goalId);
         }
+        await preserveInvestmentAllocation(userId, existingRows[0].assignedPayDate,
+            Math.max(0, effectiveEntries.filter(e => e.targetKind === "investment").reduce((sum, e) => sum + e.amountCents, 0) -
+            existingRows.filter(e => e.targetKind === "investment").reduce((sum, e) => sum + e.amountCents, 0)), tx);
     });
     } catch (error) {
         return { ok: false, error: actionError(error, "Could not update assignments") };

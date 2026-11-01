@@ -66,6 +66,12 @@ npm run db:setup
 
 It creates the app's tables and access rules. It does not add purchases, accounts, or example money. If setup fails, its database changes are rolled back.
 
+For an existing installation from before uninvested cash tracking, back up the
+database and apply `lib/db/migrations/0001_uninvested_cash_sources.sql` once
+before deploying the updated app. This adds cash-source fields and allocation
+guards. It does not change past transfer amounts or create historical balances.
+Do not rerun `db:setup` against an existing database.
+
 In Supabase **Authentication → URL Configuration**, set:
 
 - **Site URL:** `http://localhost:3000`

@@ -3,6 +3,9 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { calendarDateSchema } from "@/lib/date-schema";
+import { format } from "date-fns";
+import { getUserToday } from "@/lib/user-timezone";
+import { loadCurrentPaycheckSummary } from "@/features/paycheck/server";
 import { revalidatePath } from "next/cache";
 
 import { db, schema } from "@/lib/db";
@@ -70,16 +73,25 @@ export async function recordInvestmentTransfer(
   if (!user) return { ok: false, error: "Please sign in again." };
 
   const values = parsed.data;
-  const newOverageCents = Math.max(
-    0,
-    values.actualCents - values.suggestedCents,
-  );
-  const newSource =
-    newOverageCents > 0 ? values.overageSource : "future-investing";
-
   try {
     await db.transaction(async (tx) => {
       await lockAllocationOwner(tx, user.id);
+      const todayIso = format(await getUserToday(user.id, tx), "yyyy-MM-dd");
+      const summary = await loadCurrentPaycheckSummary(user.id, todayIso, tx);
+      if (values.payPeriodStartDate !== summary.periodStartIso) {
+        throw new Error("USER:Record the current paycheck's investment. Historical transfers require a review of their funding.");
+      }
+      if (values.transferDate < values.payPeriodStartDate || values.transferDate > todayIso) {
+        throw new Error("USER:Choose a transfer date within this paycheck and no later than today.");
+      }
+      if (values.suggestedCents !== summary.investmentBudgetCents) {
+        throw new Error("USER:The available investment money changed. Close this sheet and review the updated amount.");
+      }
+      const newOverageCents = Math.max(0, values.actualCents - summary.investmentBudgetCents);
+      const newSource = newOverageCents > 0 ? values.overageSource : "future-investing";
+      // A user may earmark released cash for investing, then confirm $0 again.
+      // Retain that assignment's provenance while releasing only the cash left.
+      const uninvestedCents = summary.reinvestedCents + Math.max(0, summary.investmentBudgetCents - values.actualCents);
       const [existing] = await tx
         .select()
         .from(schema.investmentTransfers)
@@ -93,6 +105,15 @@ export async function recordInvestmentTransfer(
           ),
         )
         .limit(1);
+
+      if (existing) {
+        const assignments = await tx.select({ amountCents: schema.paycheckAllocations.amountCents })
+          .from(schema.paycheckAllocations).where(and(eq(schema.paycheckAllocations.userId, user.id),
+            eq(schema.paycheckAllocations.investmentTransferId, existing.id)));
+        if (assignments.reduce((sum, a) => sum + a.amountCents, 0) > uninvestedCents) {
+          throw new Error("USER:This transfer's leftover cash has already been assigned. Review those allocations before changing the invested amount.");
+        }
+      }
 
       const oldOverageCents = existing
         ? Math.max(0, existing.actualCents - existing.suggestedCents)
@@ -182,6 +203,9 @@ export async function recordInvestmentTransfer(
           transferDate: values.transferDate,
           suggestedCents: values.suggestedCents,
           actualCents: values.actualCents,
+          uninvestedCents,
+          uninvestedDate: uninvestedCents > 0 ? todayIso : null,
+          cashBudgetCents: values.suggestedCents,
           overageSource: newSource,
           overageGoalId:
             newSource === "goal" ? (values.overageGoalId ?? null) : null,
@@ -196,6 +220,9 @@ export async function recordInvestmentTransfer(
             transferDate: values.transferDate,
             suggestedCents: values.suggestedCents,
             actualCents: values.actualCents,
+            uninvestedCents,
+            uninvestedDate: uninvestedCents > 0 ? todayIso : null,
+            cashBudgetCents: values.suggestedCents,
             overageSource: newSource,
             overageGoalId:
               newSource === "goal" ? (values.overageGoalId ?? null) : null,
@@ -256,6 +283,7 @@ export async function recordInvestmentTransfer(
   }
 
   revalidatePath("/paycheck");
+
   revalidatePath("/goals");
   revalidatePath("/projects", "layout");
   return { ok: true };
@@ -315,5 +343,6 @@ export async function syncInvestmentAdvanceApplication(input: {
     }
   });
   revalidatePath("/paycheck");
+
   return { ok: true };
 }

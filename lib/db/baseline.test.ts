@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { afterAll, beforeAll, expect, it } from "vitest";
 const pg = new PGlite();
@@ -7,7 +7,7 @@ const stranger = "10000000-0000-4000-8000-000000000002";
 let tables: string[] = [];
 beforeAll(async () => {
   await pg.exec("CREATE ROLE authenticated; CREATE ROLE anon; CREATE SCHEMA auth; CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql AS $$ SELECT nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;");
-  await pg.exec(readFileSync("lib/db/migrations/0000_public_baseline.sql", "utf8"));
+  for (const name of readdirSync("lib/db/migrations").filter(n => n.endsWith(".sql")).sort()) await pg.exec(readFileSync(`lib/db/migrations/${name}`, "utf8"));
   tables = (await pg.query<{tablename:string}>("SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename")).rows.map(row => row.tablename);
   await pg.exec(`INSERT INTO users(id,email) VALUES ('${owner}','owner@example.test'),('${stranger}','stranger@example.test');
     INSERT INTO settings(user_id,take_home_cents,pay_anchor_date) VALUES ('${owner}',100000,'2031-01-31'),('${stranger}',200000,'2031-01-31');

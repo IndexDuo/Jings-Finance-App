@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { Client } from "pg";
@@ -24,8 +24,10 @@ async function setup() {
     if (rows.length) throw new Error("Database setup requires a fresh public schema. Existing tables were left untouched.");
     const roles = await client.query("SELECT 1 FROM pg_roles WHERE rolname IN ('anon','authenticated')");
     if (roles.rowCount !== 2) throw new Error("Use a fresh Supabase database with Auth roles configured.");
-    const baseline = await readFile(fileURLToPath(new URL("../lib/db/migrations/0000_public_baseline.sql", import.meta.url)), "utf8");
-    await client.query(baseline);
+    const migrationDirectory = new URL("../lib/db/migrations/", import.meta.url);
+    for (const name of (await readdir(migrationDirectory)).filter(name => name.endsWith(".sql")).sort()) {
+      await client.query(await readFile(new URL(name, migrationDirectory), "utf8"));
+    }
     if (demo) {
       // Installed only with the fresh demo baseline, never over an existing account database.
       await client.query(`CREATE TABLE finance_private.demo_installation (

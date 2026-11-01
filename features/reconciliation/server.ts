@@ -32,6 +32,7 @@ export async function loadReconciliationReport(userId: string, asOfDate: string)
       ...reconcileMoney({ goals, recoveries, envelopes, goalFunding, recoveryFunding,
         envelopeFunding, savingTransfers, transactions, allocations, planReleases,
         billReleases: billFunding.settlements, billFundingEvents: billFunding.events,
+        investmentCash: investments,
         completedPeriods: snapshot.completedPeriods }),
     };
   }, { isolationLevel: "repeatable read", accessMode: "read only" });
