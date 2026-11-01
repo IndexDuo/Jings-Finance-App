@@ -584,8 +584,8 @@ export default async function PaycheckPage() {
                     kind: s.kind,
                     label: s.label,
                     amountCents: s.amountCents,
-                    detail: s.detail,
-                    infoDetail: s.infoDetail,
+                    detail: s.id === "extra-income" ? undefined : s.detail,
+                    infoDetail: s.id === "extra-income" ? s.detail : s.infoDetail,
                 fundingWarning: s.fundingWarning,
                     automaticSaving: s.kind === "goal",
                 };
