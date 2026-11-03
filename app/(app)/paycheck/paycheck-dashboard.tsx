@@ -1386,7 +1386,7 @@ export function WaterfallBreakdown({
                                         {s.detail}
                                     </p>
                                 )}
-                                {spendingOpen && s.kind === "envelope" && spending && (
+                                {spending && (
                                     <div className="mt-2">
                                         <div className="h-1 w-full overflow-hidden rounded-full bg-secondary-system-bg">
                                             <div
@@ -1435,10 +1435,7 @@ export function WaterfallBreakdown({
                     </span>
                 </div>
             </div>
-            {steps.some((step) =>
-                (step.kind === "fixed" && step.detail) ||
-                (step.kind === "envelope" && step.envelopeSpending),
-            ) && (
+            {steps.some((step) => step.kind === "fixed" && step.detail) && (
                 <button
                     type="button"
                     onClick={() => setSpendingOpen(!spendingOpen)}
