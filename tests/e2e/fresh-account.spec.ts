@@ -139,8 +139,8 @@ test("new account confirms email, onboards, funds projects, releases money, rese
   await allocation.getByRole("button",{name:/Confirm/}).click();
   await expect(allocation).not.toBeVisible();
   await page.getByRole("button",{name:"Record",exact:true}).click();
-  await money(page,"Amount transferred","25.00");
-  await page.getByRole("button",{name:"Save actual transfer",exact:true}).click();
+  await money(page,"Amount invested","25.00");
+  await page.getByRole("button",{name:"Save investment",exact:true}).click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.goto("/settings");
   await page.getByLabel("Edit pay").click();

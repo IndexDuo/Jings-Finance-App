@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, Info, Settings2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Info, Settings2 } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
@@ -18,6 +18,7 @@ import { MoneyInput } from "@/components/ui/money-input";
 import { cn } from "@/lib/utils";
 import type { EnvelopeSpending } from "@/features/paycheck/lib/envelope-spending";
 import type { WaterfallStepKind } from "@/features/paycheck/lib/waterfall";
+import type { InvestmentSource } from "@/features/investments/lib/funding";
 import {
     recordInvestmentTransfer,
     syncInvestmentAdvanceApplication,
@@ -96,11 +97,25 @@ export interface PendingAllocation {
     existingAllocations?: AllocationEntry[];
 }
 
-export interface HistoryAllocation {
-    source?: "income" | "leftover" | "plan-release" | "bill-release" | "uninvested";
-    targetKind: "recovery" | "goal" | "envelope" | "piggy" | "investment";
+export interface HistoryMoneyMove {
+    id: string;
+    date: string;
     label: string;
+    detail?: string;
     amountCents: number;
+}
+
+export type HistoryReview = Pick<HistoryMoneyMove, "id" | "date">;
+
+interface InvestmentEntry {
+    id: string;
+    date: string;
+    amountCents: number;
+    paycheckCents: number;
+    overageCents: number;
+    overageSource: InvestmentSource;
+    overageGoalId: string | null;
+    note: string | null;
 }
 
 export interface HistoryTransactionDetail {
@@ -132,7 +147,7 @@ export interface HistoryPeriod {
     priorityPlans: HistoryDirectedFlow[];
     piggyTransfers: HistoryDirectedFlow[];
     investmentAdvances?: HistoryDirectedFlow[];
-    allocations: HistoryAllocation[];
+    moneyMoves: HistoryMoneyMove[];
 }
 
 export interface HistoryData {
@@ -161,6 +176,8 @@ export interface PaycheckPageData {
     waterfallSteps: WaterfallStepData[];
     investmentPoolCents: number;
     investmentBudgetCents?: number;
+    investmentRemainingCents: number;
+    investmentEntries: InvestmentEntry[];
     investmentAdvance: {
         outstandingBeforeCents: number;
         appliedThisPaycheckCents: number;
@@ -281,6 +298,7 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
 
     const [paycheckInfoOpen, setPaycheckInfoOpen] = useState(false);
     const [guiltDetailsOpen, setGuiltDetailsOpen] = useState(false);
+    const [historyReview, setHistoryReview] = useState<HistoryReview | null>(null);
     const {
         takeHomeCents,
         nextTakeHomeCents,
@@ -442,6 +460,8 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                         {!investmentTransfer && (
                             <InvestmentStatusCard
                                 suggestedCents={investmentBudgetCents}
+                                remainingCents={data.investmentRemainingCents}
+                                entries={data.investmentEntries}
                                 periodStartIso={periodStartIso}
                                 currentDateIso={currentDateIso}
                                 recorded={investmentTransfer}
@@ -484,6 +504,11 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                     <GroupedCard>
                         <InvestmentStatusCard
                             suggestedCents={investmentBudgetCents}
+                            remainingCents={data.investmentRemainingCents}
+                            entries={data.investmentEntries}
+                            reviewing={historyReview !== null}
+                            onReview={setHistoryReview}
+                            historyMoves={history.months.flatMap(month => month.moneyMoves)}
                             periodStartIso={periodStartIso}
                             currentDateIso={currentDateIso}
                             recorded={investmentTransfer}
@@ -495,6 +520,8 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
                 )}
                 <HistoryCard
                     data={history}
+                    review={historyReview}
+                    onCloseReview={() => setHistoryReview(null)}
                     allocationEditor={allocationEditor}
                     investmentPoolCents={investmentPoolCents}
                 />
@@ -585,6 +612,11 @@ export function PaycheckDashboard({ data }: { data: PaycheckPageData }) {
 
 export function InvestmentStatusCard({
     suggestedCents,
+    remainingCents = suggestedCents,
+    entries = [],
+    historyMoves = [],
+    reviewing = false,
+    onReview,
     periodStartIso,
     currentDateIso,
     recorded,
@@ -593,6 +625,11 @@ export function InvestmentStatusCard({
     advance,
 }: {
     suggestedCents: number;
+    remainingCents?: number;
+    entries?: InvestmentEntry[];
+    historyMoves?: HistoryMoneyMove[];
+    reviewing?: boolean;
+    onReview?: (move: HistoryReview) => void;
     periodStartIso: string;
     currentDateIso: string;
     recorded: PaycheckPageData["investmentTransfer"];
@@ -601,88 +638,99 @@ export function InvestmentStatusCard({
     advance: PaycheckPageData["investmentAdvance"];
 }) {
     const router = useRouter();
-    const [open, setOpen] = useState(false);
+    const [requestId, setRequestId] = useState<string | null>(null);
+    const [editing, setEditing] = useState<InvestmentEntry | null>(null);
     const [expanded, setExpanded] = useState(false);
-    const [actualCents, setActualCents] = useState<number | null>(
-        recorded?.actualCents ?? suggestedCents,
-    );
-    const [transferDate, setTransferDate] = useState(
-        recorded?.transferDate ?? currentDateIso,
-    );
-    const [note, setNote] = useState(recorded?.note ?? "");
-    const [source, setSource] = useState<
-        "future-investing" | "existing-cash" | "recovery" | "goal"
-    >(recorded?.overageSource ?? "future-investing");
-    const [goalId, setGoalId] = useState(recorded?.overageGoalId ?? "");
-    const [showOtherSources, setShowOtherSources] = useState(
-        Boolean(recorded && recorded.overageSource !== "future-investing"),
-    );
+    const [actualCents, setActualCents] = useState<number | null>(null);
+    const [transferDate, setTransferDate] = useState(currentDateIso);
+    const [note, setNote] = useState("");
+    const [source, setSource] = useState<InvestmentSource>("future-investing");
+    const [sourceConfirmed, setSourceConfirmed] = useState(false);
+    const [choosingSource, setChoosingSource] = useState(false);
+    const [goalId, setGoalId] = useState("");
     const [recoveryTarget, setRecoveryTarget] = useState<
         "checking" | "emergency-fund" | "other"
     >("checking");
     const [recoveryTargetLabel, setRecoveryTargetLabel] = useState("");
     const [recoveryDueDate, setRecoveryDueDate] = useState(nextPayDateIso);
     const [error, setError] = useState<string | null>(null);
+    const [shortfall, setShortfall] = useState<{
+        availableCents: number;
+        cents: number;
+        move?: HistoryReview;
+    } | null>(null);
     const [pending, startTransition] = useTransition();
 
-    function beginEdit() {
-        setActualCents(recorded?.actualCents ?? suggestedCents);
-        setTransferDate(recorded?.transferDate ?? currentDateIso);
-        setNote(recorded?.note ?? "");
-        setSource(recorded?.overageSource ?? "future-investing");
-        setGoalId(recorded?.overageGoalId ?? "");
-        setShowOtherSources(
-            Boolean(recorded && recorded.overageSource !== "future-investing"),
-        );
+    const open = requestId !== null;
+    const availableCents = shortfall?.availableCents ?? Math.max(0, remainingCents + (editing?.paycheckCents ?? 0));
+    const relatedMove = historyMoves.find(move => move.id === shortfall?.move?.id);
+    const totalCents = entries.length
+        ? entries.reduce((sum, entry) => sum + entry.amountCents, 0)
+        : recorded?.actualCents ?? 0;
+
+    function resetWarning() {
+        setShortfall(null);
         setError(null);
-        setOpen(true);
+        setChoosingSource(false);
+        setSourceConfirmed(false);
+    }
+
+    function beginEntry(entry?: InvestmentEntry) {
+        setEditing(entry ?? null);
+        setRequestId(entry?.id ?? crypto.randomUUID());
+        setActualCents(entry?.amountCents ?? null);
+        setTransferDate(entry?.date ?? currentDateIso);
+        setNote(entry?.note ?? "");
+        setSource(entry?.overageSource ?? "future-investing");
+        setGoalId(entry?.overageGoalId ?? "");
+        setRecoveryTarget("checking");
+        setRecoveryTargetLabel("");
+        setRecoveryDueDate(nextPayDateIso);
+        resetWarning();
+    }
+
+    function chooseSource(value: InvestmentSource) {
+        setSource(value);
+        setSourceConfirmed(true);
+        setError(null);
     }
 
     function save() {
-        if (actualCents == null || actualCents < 0) {
-            setError(
-                "Enter the amount you actually transferred, including $0.",
-            );
-            return;
-        }
+        if (requestId === null || actualCents === null) return;
         startTransition(async () => {
             const result = await recordInvestmentTransfer({
+                entryId: requestId,
+                edit: !!editing,
+                sourceConfirmed,
                 payPeriodStartDate: periodStartIso,
                 transferDate,
-                suggestedCents,
+                suggestedCents: availableCents,
                 actualCents,
                 note,
                 overageSource: source,
-                overageGoalId: source === "goal" ? goalId : undefined,
-                recoveryTarget:
-                    source === "recovery" ? recoveryTarget : undefined,
-                recoveryTargetLabel:
-                    source === "recovery" ? recoveryTargetLabel : undefined,
-                recoveryStartDate:
-                    source === "recovery" ? nextPayDateIso : undefined,
-                recoveryDueDate:
-                    source === "recovery" ? recoveryDueDate : undefined,
+                overageGoalId: source === "goal" ? goalId || undefined : undefined,
+                recoveryTarget: source === "recovery" ? recoveryTarget : undefined,
+                recoveryTargetLabel: source === "recovery" ? recoveryTargetLabel : undefined,
+                recoveryStartDate: source === "recovery" ? nextPayDateIso : undefined,
+                recoveryDueDate: source === "recovery" ? recoveryDueDate : undefined,
             });
             if (!result.ok) {
-                setError(result.error);
+                if (result.shortfall) {
+                    setShortfall(result.shortfall);
+                    setSourceConfirmed(false);
+                    setError(null);
+                    if (result.shortfall.move && !historyMoves.some(move => move.id === result.shortfall?.move?.id)) {
+                        router.refresh();
+                    }
+                } else {
+                    setError(result.error);
+                }
                 return;
             }
-            setOpen(false);
-            setExpanded(false);
+            setRequestId(null);
             router.refresh();
         });
     }
-
-    const differenceCents = recorded
-        ? recorded.actualCents - suggestedCents
-        : null;
-    const editingOverageCents = Math.max(
-        0,
-        (actualCents ?? 0) - suggestedCents,
-    );
-    const recordedGoalName = sourceGoals.find(
-        (goal) => goal.id === recorded?.overageGoalId,
-    )?.name;
 
     return (
         <>
@@ -690,141 +738,165 @@ export function InvestmentStatusCard({
                 <div className="flex items-center justify-between gap-4 px-5 py-4">
                     <div className="min-w-0">
                         <div className="flex items-center gap-1">
-                            <h2 className="text-[15px] text-label">
-                                Investment
-                            </h2>
-                            <button
-                                type="button"
-                                aria-label="Investment details"
-                                aria-expanded={expanded}
+                            <h2 className="text-[15px] text-label">Investment</h2>
+                            <button type="button" aria-label="Investment details" aria-expanded={expanded}
                                 onClick={() => setExpanded(!expanded)}
-                                className="flex h-9 w-9 items-center justify-center text-secondary-label"
-                            >
+                                className="flex h-9 w-9 items-center justify-center text-secondary-label">
                                 <Info className="h-3.5 w-3.5" aria-hidden />
                             </button>
                         </div>
-                        <p
-                            className={cn(
-                                "text-[13px]",
-                                recorded
-                                    ? "text-secondary-label"
-                                    : "text-system-red",
-                            )}
-                        >
-                            {recorded
-                                ? fmt(recorded.actualCents) + " recorded"
-                                : "Not recorded"}
+                        <p className={cn("text-[13px]", recorded ? "text-secondary-label" : "text-system-red")}>
+                            {recorded ? fmt(totalCents) + " recorded" : "Not recorded"}
                         </p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={beginEdit}
-                        className="min-h-11 shrink-0 text-[13px] font-medium text-system-blue"
-                    >
-                        {recorded ? "Update" : "Record"}
+                    <button type="button" onClick={() => beginEntry()}
+                        className="min-h-11 shrink-0 text-[13px] font-medium text-system-blue">
+                        Record
                     </button>
                 </div>
+                {entries.length > 0 && (
+                    <ul className="divide-y divide-separator border-t border-separator px-5">
+                        {entries.map(entry => (
+                            <li key={entry.id}>
+                                <button type="button" onClick={() => beginEntry(entry)}
+                                    aria-label={"Edit " + fmt(entry.amountCents) + " investment on " + fmtDate(entry.date)}
+                                    className="flex min-h-11 w-full items-center justify-between gap-3 py-3 text-left text-[14px]">
+                                    <span className="min-w-0">
+                                        <span className="block">{fmtDate(entry.date)}</span>
+                                        {entry.overageSource === "existing-cash" && entry.overageCents > 0 && (
+                                            <span className="mt-1 block text-[12px] text-secondary-label">
+                                                {fmt(entry.overageCents)} from existing cash
+                                            </span>
+                                        )}
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-3 font-medium tabular-nums">
+                                        {fmt(entry.amountCents)}
+                                        <ChevronRight className="h-4 w-4 text-tertiary-label" aria-hidden />
+                                    </span>
+                                </button>
+                            </li>
+                        ))}
+                    </ul>
+                )}
                 {expanded && (
-                    <div
-                        id="current-paycheck-investment-details"
-                        className="border-t border-separator px-5 py-4"
-                    >
-                        <div className="flex items-center justify-between gap-4">
-                            <span className="text-[14px] text-secondary-label">
-                                Investment budget
-                            </span>
-                            <span className="text-[15px] font-medium tabular-nums text-label">
-                                {fmt(suggestedCents)}
-                            </span>
+                    <div className="space-y-2 border-t border-separator px-5 py-4 text-[14px]">
+                        <div className="flex justify-between gap-3">
+                            <span className="text-secondary-label">Investment budget</span>
+                            <strong className="tabular-nums">{fmt(suggestedCents)}</strong>
                         </div>
-                        <div className="mt-2 flex items-center justify-between gap-4">
-                            <span className="text-[14px] text-secondary-label">
-                                Actually transferred
-                            </span>
-                            <span className="text-[15px] font-semibold tabular-nums text-label">
-                                {recorded
-                                    ? fmt(recorded.actualCents)
-                                    : "Not recorded"}
-                            </span>
+                        <div className="flex justify-between gap-3">
+                            <span className="text-secondary-label">Left to invest from this paycheck</span>
+                            <strong className="tabular-nums">{fmt(Math.max(0, remainingCents))}</strong>
                         </div>
-                        <p className="mt-3 text-[12px] leading-relaxed text-secondary-label">
-                            {(recorded?.uninvestedCents ?? 0) > 0
-                                ? (recorded?.uninvestedAvailableCents ?? 0) > 0
-                                    ? `${fmt(recorded!.uninvestedAvailableCents!)} is in Money to assign. Choose its destination there.`
-                                    : "The cash left uninvested has been assigned. See History for its destinations."
-                                : !recorded
-                                ? "The suggestion is not counted as invested until you record the real transfer."
-                                : differenceCents === 0
-                                  ? `Recorded ${fmtDate(recorded.transferDate)}. The actual transfer matches the current suggestion.`
-                                  : differenceCents! < 0
-                                    ? `${fmt(Math.abs(differenceCents!))} was not invested. Update the actual transfer to put the confirmed leftover into Money to assign.`
-                                    : recorded.overageSource ===
-                                        "future-investing"
-                                      ? `${fmt(differenceCents!)} will reduce future investing after recovery and plans.`
-                                      : recorded.overageSource ===
-                                          "existing-cash"
-                                        ? `The extra ${fmt(differenceCents!)} came from existing cash; future paychecks are unchanged.`
-                                        : recorded.overageSource === "goal"
-                                          ? `${fmt(differenceCents!)} was recorded from ${recordedGoalName ?? "a savings plan"}.`
-                                          : `A ${fmt(differenceCents!)} cash recovery was added to Plans.`}
-                        </p>
-                        {advance.outstandingBeforeCents > 0 && (
-                            <p className="mt-2 rounded-button bg-secondary-system-bg px-3 py-2 text-[12px] leading-relaxed text-secondary-label">
-                                {advance.appliedThisPaycheckCents > 0
-                                    ? `${fmt(advance.appliedThisPaycheckCents)} from an earlier investment advance is applied after plans this paycheck.`
-                                    : "An earlier investment advance remains, but this paycheck has nothing available after higher priorities."}
-                                {advance.remainingAfterCents > 0 &&
-                                    ` ${fmt(advance.remainingAfterCents)} carries forward.`}
+                        {!!recorded?.uninvestedAvailableCents && (
+                            <p className="text-[12px] text-secondary-label">
+                                {fmt(recorded.uninvestedAvailableCents)} is in Money to assign.
                             </p>
                         )}
-                        <button
-                            type="button"
-                            onClick={beginEdit}
-                            className="mt-3 text-[13px] font-medium text-system-blue"
-                        >
-                            {recorded
-                                ? "Update actual transfer"
-                                : "Record actual transfer"}
-                        </button>
+                        {advance.outstandingBeforeCents > 0 && (
+                            <p className="text-[12px] text-secondary-label">
+                                {fmt(advance.appliedThisPaycheckCents)} of earlier investing came from this paycheck.
+                                {advance.remainingAfterCents > 0 && " " + fmt(advance.remainingAfterCents) + " carries forward."}
+                            </p>
+                        )}
                     </div>
                 )}
             </section>
             <BottomSheet
-                open={open}
-                onClose={() => setOpen(false)}
-                title="Actual investment transfer"
+                open={open && !reviewing}
+                onClose={() => { if (!pending) setRequestId(null); }}
+                title={editing ? "Edit investment" : "Record investment"}
                 contentClassName="pb-6"
             >
                 <div className="space-y-4">
-                    <p className="text-[14px] leading-relaxed text-secondary-label">
-                        Enter what you really moved to an investment account.
-                        This is a transfer record, not an expense, and it can
-                        differ from the {fmt(suggestedCents)} suggestion.
-                        {" "}Any money left uninvested will appear in Money to assign.
-                    </p>
+                    <p className="text-[14px] text-secondary-label">Enter what you invested this time.</p>
+                    <div className="flex items-center justify-between gap-3 border-b border-separator pb-3 text-[13px]">
+                        <span className="text-secondary-label">Left to invest from this paycheck</span>
+                        <strong className="shrink-0 tabular-nums">{fmt(availableCents)}</strong>
+                    </div>
                     <div>
                         <label className="mb-1 block text-[13px] font-medium text-secondary-label">
-                            Amount transferred
+                            Amount invested
                         </label>
                         <MoneyInput
-                            aria-label="Amount transferred"
+                            aria-label="Amount invested"
                             value={actualCents}
-                            onChange={setActualCents}
+                            onChange={(value) => { setActualCents(value); resetWarning(); }}
                             placeholder="0.00"
                         />
                     </div>
-                    {editingOverageCents > 0 && (
+                    <div>
+                        <label className="mb-1 block text-[13px] font-medium text-secondary-label">
+                            Date
+                        </label>
+                        <input
+                            type="date"
+                            aria-label="Investment date"
+                            value={transferDate}
+                            min={periodStartIso}
+                            max={currentDateIso}
+                            onChange={(event) =>
+                                setTransferDate(event.target.value)
+                            }
+                            className="h-12 w-full rounded-button bg-secondary-system-bg px-4 text-[17px] text-label outline-none"
+                        />
+                    </div>
+                    <div>
+                        <label className="mb-1 block text-[13px] font-medium text-secondary-label">
+                            Note{" "}
+                            <span className="font-normal text-tertiary-label">
+                                (optional)
+                            </span>
+                        </label>
+                        <input
+                            type="text"
+                            value={note}
+                            maxLength={240}
+                            onChange={(event) => setNote(event.target.value)}
+                            aria-label="Investment note"
+                            placeholder="Add a note"
+                            className="h-12 w-full rounded-button bg-secondary-system-bg px-4 text-[17px] text-label outline-none placeholder:text-tertiary-label"
+                        />
+                    </div>
+                    {shortfall && (
+                        <div className="space-y-2 border-t border-separator pt-3">
+                            <p role="status" className="text-[14px] font-medium text-system-red">
+                                {fmt(shortfall.cents)} more than you have left to invest
+                            </p>
+                            {relatedMove && (
+                                <p className="text-[13px] text-secondary-label">
+                                    You moved {fmt(relatedMove.amountCents)} to {relatedMove.label.slice(3)} on {fmtDate(relatedMove.date)}.
+                                </p>
+                            )}
+                            <div className="flex flex-wrap justify-between gap-x-3">
+                                {shortfall.move && relatedMove && onReview && (
+                                    <button type="button" className="min-h-11 text-[13px] font-medium text-system-blue"
+                                        onClick={() => onReview(shortfall.move!)}>
+                                        Review money moves
+                                    </button>
+                                )}
+                                {!choosingSource && (
+                                    <button type="button" className="min-h-11 text-[13px] font-medium text-system-blue"
+                                        onClick={() => setChoosingSource(true)}>
+                                        Choose another source
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                    {shortfall && choosingSource && (
                         <div className="rounded-button bg-secondary-system-bg p-3">
                             <p className="text-[13px] font-medium text-label">
-                                Where did the extra {fmt(editingOverageCents)}{" "}
+                                Where did the extra {fmt(shortfall.cents)}{" "}
                                 come from?
                             </p>
                             <button
                                 type="button"
-                                onClick={() => setSource("future-investing")}
+                                onClick={() => chooseSource("future-investing")}
+                                aria-pressed={sourceConfirmed && source === "future-investing"}
                                 className={cn(
                                     "mt-2 w-full rounded-button border px-3 py-2.5 text-left",
-                                    source === "future-investing"
+                                    sourceConfirmed && source === "future-investing"
                                         ? "border-system-blue bg-system-blue/10"
                                         : "border-separator bg-system-bg",
                                 )}
@@ -837,18 +909,7 @@ export function InvestmentStatusCard({
                                     plans stay first.
                                 </span>
                             </button>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setShowOtherSources((value) => !value)
-                                }
-                                className="mt-2 text-[13px] font-medium text-system-blue"
-                            >
-                                {showOtherSources
-                                    ? "Hide other sources"
-                                    : "Choose another source"}
-                            </button>
-                            {showOtherSources && (
+                            {(
                                 <div className="mt-2 grid grid-cols-3 gap-2">
                                     {[
                                         ["existing-cash", "Existing cash"],
@@ -858,8 +919,9 @@ export function InvestmentStatusCard({
                                         <button
                                             key={value}
                                             type="button"
+                                            aria-pressed={sourceConfirmed && source === value}
                                             onClick={() =>
-                                                setSource(
+                                                chooseSource(
                                                     value as
                                                         | "existing-cash"
                                                         | "recovery"
@@ -868,7 +930,7 @@ export function InvestmentStatusCard({
                                             }
                                             className={cn(
                                                 "rounded-button border px-2 py-2 text-[12px] font-medium",
-                                                source === value
+                                                sourceConfirmed && source === value
                                                     ? "border-system-blue bg-system-blue/10 text-system-blue"
                                                     : "border-separator bg-system-bg text-label",
                                             )}
@@ -878,7 +940,7 @@ export function InvestmentStatusCard({
                                     ))}
                                 </div>
                             )}
-                            {source === "goal" && (
+                            {sourceConfirmed && source === "goal" && (
                                 <div className="mt-3">
                                     <label className="mb-1 block text-[12px] text-secondary-label">
                                         Savings plan
@@ -903,7 +965,7 @@ export function InvestmentStatusCard({
                                     </select>
                                 </div>
                             )}
-                            {source === "recovery" && (
+                            {sourceConfirmed && source === "recovery" && (
                                 <div className="mt-3 space-y-3">
                                     <div>
                                         <label className="mb-1 block text-[12px] text-secondary-label">
@@ -964,38 +1026,6 @@ export function InvestmentStatusCard({
                             )}
                         </div>
                     )}
-                    <div>
-                        <label className="mb-1 block text-[13px] font-medium text-secondary-label">
-                            Transfer date
-                        </label>
-                        <input
-                            type="date"
-                            aria-label="Transfer date"
-                            value={transferDate}
-                            max={currentDateIso}
-                            onChange={(event) =>
-                                setTransferDate(event.target.value)
-                            }
-                            className="h-12 w-full rounded-button bg-secondary-system-bg px-4 text-[17px] text-label outline-none"
-                        />
-                    </div>
-                    <div>
-                        <label className="mb-1 block text-[13px] font-medium text-secondary-label">
-                            Note{" "}
-                            <span className="font-normal text-tertiary-label">
-                                (optional)
-                            </span>
-                        </label>
-                        <input
-                            type="text"
-                            value={note}
-                            maxLength={240}
-                            onChange={(event) => setNote(event.target.value)}
-                            aria-label="Transfer note"
-                            placeholder="Optional transfer note"
-                            className="h-12 w-full rounded-button bg-secondary-system-bg px-4 text-[17px] text-label outline-none placeholder:text-tertiary-label"
-                        />
-                    </div>
                     {error && (
                         <p role="alert" className="text-[13px] text-system-red">
                             {error}
@@ -1005,11 +1035,14 @@ export function InvestmentStatusCard({
                         type="button"
                         onClick={save}
                         disabled={
-                            pending || actualCents == null || !transferDate
+                            pending || actualCents == null || !transferDate ||
+                            (!!shortfall && !sourceConfirmed) ||
+                            (sourceConfirmed && source === "goal" && !goalId) ||
+                            (sourceConfirmed && source === "recovery" && !recoveryDueDate)
                         }
                         className="h-12 w-full rounded-button bg-system-blue text-[17px] font-medium text-white disabled:opacity-40"
                     >
-                        {pending ? "Saving…" : "Save actual transfer"}
+                        {pending ? "Saving…" : "Save investment"}
                     </button>
                 </div>
             </BottomSheet>

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { calendarDateSchema } from "@/lib/date-schema";
 import { format } from "date-fns";
 import { getUserToday } from "@/lib/user-timezone";
+import { todayInUserTz } from "@/lib/dates";
 import { loadCurrentPaycheckSummary } from "@/features/paycheck/server";
 import { revalidatePath } from "next/cache";
 
@@ -13,6 +14,7 @@ import { lockAllocationOwner } from "@/features/allocations/server";
 import { getAppAuthUser } from "@/lib/supabase/app-user";
 
 import { loadInvestmentAdvanceForPeriod } from "./server";
+import { investmentOverageCents, investmentPaycheckCents } from "./lib/funding";
 
 const overageSource = z.enum([
   "future-investing",
@@ -24,9 +26,12 @@ const overageSource = z.enum([
 const recordInvestmentTransferSchema = z
   .object({
     payPeriodStartDate: calendarDateSchema,
+    entryId: z.string().uuid().optional(),
+    edit: z.boolean().optional(),
+    sourceConfirmed: z.boolean().optional(),
     transferDate: calendarDateSchema,
     suggestedCents: z.number().int().nonnegative(),
-    actualCents: z.number().int().nonnegative(),
+    actualCents: z.number().int().min(0).max(2147483647),
     overageSource: overageSource.default("future-investing"),
     overageGoalId: z.string().uuid().optional(),
     recoveryTarget: z
@@ -38,7 +43,7 @@ const recordInvestmentTransferSchema = z
     note: z.string().trim().max(240).optional(),
   })
   .superRefine((value, context) => {
-    if (value.actualCents <= value.suggestedCents) return;
+    if (value.entryId || value.actualCents <= value.suggestedCents) return;
     if (value.overageSource === "goal" && !value.overageGoalId) {
       context.addIssue({
         code: "custom",
@@ -58,9 +63,15 @@ const recordInvestmentTransferSchema = z
     }
   });
 
+type InvestmentResult = { ok: true } | {
+  ok: false;
+  error: string;
+  shortfall?: { availableCents: number; cents: number; move?: { id: string; date: string } };
+};
+
 export async function recordInvestmentTransfer(
   input: z.input<typeof recordInvestmentTransferSchema>,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<InvestmentResult> {
   const parsed = recordInvestmentTransferSchema.safeParse(input);
   if (!parsed.success) {
     return {
@@ -74,7 +85,7 @@ export async function recordInvestmentTransfer(
 
   const values = parsed.data;
   try {
-    await db.transaction(async (tx) => {
+    const result = await db.transaction(async (tx): Promise<InvestmentResult> => {
       await lockAllocationOwner(tx, user.id);
       const todayIso = format(await getUserToday(user.id, tx), "yyyy-MM-dd");
       const summary = await loadCurrentPaycheckSummary(user.id, todayIso, tx);
@@ -84,40 +95,66 @@ export async function recordInvestmentTransfer(
       if (values.transferDate < values.payPeriodStartDate || values.transferDate > todayIso) {
         throw new Error("USER:Choose a transfer date within this paycheck and no later than today.");
       }
-      if (values.suggestedCents !== summary.investmentBudgetCents) {
+      const transfers = summary.currentInvestmentTransfers;
+      const receipt = transfers.find(row => row.paycheckFundedCents === null);
+      const matching = transfers.find(row => row.id === values.entryId);
+      if (values.entryId && !values.edit && matching) return { ok: true };
+      if (values.edit && !matching) throw new Error("USER:This investment is no longer available.");
+      if (!values.entryId && transfers.length > 1) {
+        throw new Error("USER:Refresh Paycheck and choose the investment you want to edit.");
+      }
+      if (!values.entryId && values.suggestedCents !== summary.investmentBudgetCents) {
         throw new Error("USER:The available investment money changed. Close this sheet and review the updated amount.");
       }
-      const newOverageCents = Math.max(0, values.actualCents - summary.investmentBudgetCents);
-      const newSource = newOverageCents > 0 ? values.overageSource : "future-investing";
-      // A user may earmark released cash for investing, then confirm $0 again.
-      // Retain that assignment's provenance while releasing only the cash left.
-      const uninvestedCents = summary.reinvestedCents + Math.max(0, summary.investmentBudgetCents - values.actualCents);
-      const [existing] = await tx
-        .select()
-        .from(schema.investmentTransfers)
-        .where(
-          and(
-            eq(schema.investmentTransfers.userId, user.id),
-            eq(
-              schema.investmentTransfers.payPeriodStartDate,
-              values.payPeriodStartDate,
-            ),
-          ),
-        )
-        .limit(1);
-
-      if (existing) {
-        const assignments = await tx.select({ amountCents: schema.paycheckAllocations.amountCents })
-          .from(schema.paycheckAllocations).where(and(eq(schema.paycheckAllocations.userId, user.id),
-            eq(schema.paycheckAllocations.investmentTransferId, existing.id)));
-        if (assignments.reduce((sum, a) => sum + a.amountCents, 0) > uninvestedCents) {
-          throw new Error("USER:This transfer's leftover cash has already been assigned. Review those allocations before changing the invested amount.");
-        }
+      const existing = values.entryId ? matching : receipt;
+      const isAdditional = existing ? existing.paycheckFundedCents !== null : !!receipt;
+      const previousPaycheckCents = existing ? investmentPaycheckCents(existing) : 0;
+      const otherSpentCents = summary.investmentPaycheckSpentCents - previousPaycheckCents;
+      const budget = summary.investmentBudgetCents;
+      const availableCents = values.entryId
+        ? Math.max(0, summary.investmentRemainingCents + previousPaycheckCents)
+        : budget;
+      const oldOverageCents = existing ? investmentOverageCents(existing) : 0;
+      const keepFunding = !!(values.edit && existing && existing.actualCents === values.actualCents && !values.sourceConfirmed);
+      const newOverageCents = keepFunding ? oldOverageCents : Math.max(0, values.actualCents - availableCents);
+      if (values.entryId && newOverageCents > 0 && !keepFunding &&
+          (!values.sourceConfirmed || values.suggestedCents !== availableCents)) {
+        const latest = summary.investmentAssignments
+          .filter(row => row.targetKind !== "investment" || row.assignedPayDate !== summary.periodStartIso)
+          .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())[0];
+        return {
+          ok: false,
+          error: "Choose where the extra money came from.",
+          shortfall: {
+            availableCents,
+            cents: newOverageCents,
+            move: latest && { id: latest.id, date: format(todayInUserTz(summary.settings.timezone, latest.createdAt), "yyyy-MM-dd") },
+          },
+        };
       }
-
-      const oldOverageCents = existing
-        ? Math.max(0, existing.actualCents - existing.suggestedCents)
-        : 0;
+      const newSource = keepFunding ? existing!.overageSource : newOverageCents > 0 ? values.overageSource : "future-investing";
+      const overageGoalId = keepFunding ? existing!.overageGoalId : newSource === "goal" ? values.overageGoalId ?? null : null;
+      if (newSource === "goal" && !overageGoalId) throw new Error("USER:Choose the savings plan the extra money came from.");
+      if (!keepFunding && newSource === "recovery" && (!values.recoveryDueDate || !values.recoveryStartDate)) {
+        throw new Error("USER:Choose when the cash should be restored.");
+      }
+      const suggestedCents = keepFunding ? existing!.suggestedCents : availableCents;
+      const paycheckFundedCents = isAdditional ? values.actualCents - newOverageCents : null;
+      const spentCents = otherSpentCents + investmentPaycheckCents({
+        actualCents: values.actualCents, paycheckFundedCents, suggestedCents, overageSource: newSource,
+      });
+      const releasedCents = summary.reinvestedCents + Math.max(0, budget - spentCents);
+      if (!values.entryId && summary.investmentAssignedCents > releasedCents) {
+        throw new Error("USER:This transfer's leftover cash has already been assigned. Review those allocations before changing the invested amount.");
+      }
+      const uninvestedCents = keepFunding
+        ? receipt!.uninvestedCents
+        : Math.max(releasedCents, summary.investmentAssignedCents);
+      const cashReceipt = {
+        uninvestedCents,
+        uninvestedDate: uninvestedCents > 0 ? receipt?.uninvestedDate ?? todayIso : null,
+        cashBudgetCents: keepFunding ? receipt!.cashBudgetCents : budget,
+      };
 
       if (existing && existing.overageSource === "recovery") {
         const [recovery] = await tx
@@ -161,10 +198,10 @@ export async function recordInvestmentTransfer(
       if (existing?.overageSource === "goal" && existing.overageGoalId) {
         goalDeltas.set(existing.overageGoalId, oldOverageCents);
       }
-      if (newSource === "goal" && values.overageGoalId) {
+      if (newSource === "goal" && overageGoalId) {
         goalDeltas.set(
-          values.overageGoalId,
-          (goalDeltas.get(values.overageGoalId) ?? 0) - newOverageCents,
+          overageGoalId,
+          (goalDeltas.get(overageGoalId) ?? 0) - newOverageCents,
         );
       }
       for (const [goalId, deltaCents] of goalDeltas) {
@@ -195,44 +232,29 @@ export async function recordInvestmentTransfer(
           );
       }
 
-      const [saved] = await tx
-        .insert(schema.investmentTransfers)
-        .values({
-          userId: user.id,
-          payPeriodStartDate: values.payPeriodStartDate,
-          transferDate: values.transferDate,
-          suggestedCents: values.suggestedCents,
-          actualCents: values.actualCents,
-          uninvestedCents,
-          uninvestedDate: uninvestedCents > 0 ? todayIso : null,
-          cashBudgetCents: values.suggestedCents,
-          overageSource: newSource,
-          overageGoalId:
-            newSource === "goal" ? (values.overageGoalId ?? null) : null,
-          note: values.note || null,
-        })
-        .onConflictDoUpdate({
-          target: [
-            schema.investmentTransfers.userId,
-            schema.investmentTransfers.payPeriodStartDate,
-          ],
-          set: {
-            transferDate: values.transferDate,
-            suggestedCents: values.suggestedCents,
-            actualCents: values.actualCents,
-            uninvestedCents,
-            uninvestedDate: uninvestedCents > 0 ? todayIso : null,
-            cashBudgetCents: values.suggestedCents,
-            overageSource: newSource,
-            overageGoalId:
-              newSource === "goal" ? (values.overageGoalId ?? null) : null,
-            note: values.note || null,
-            updatedAt: new Date(),
-          },
-        })
-        .returning({ id: schema.investmentTransfers.id });
+      const entry = {
+        transferDate: values.transferDate,
+        suggestedCents,
+        actualCents: values.actualCents,
+        paycheckFundedCents,
+        overageSource: newSource,
+        overageGoalId,
+        note: values.note || null,
+        ...(isAdditional ? {} : cashReceipt),
+      };
+      const ownerEntry = (id: string) => and(eq(schema.investmentTransfers.id, id),
+        eq(schema.investmentTransfers.userId, user.id));
+      const [saved] = existing
+        ? await tx.update(schema.investmentTransfers).set({ ...entry, updatedAt: new Date() })
+            .where(ownerEntry(existing.id)).returning({ id: schema.investmentTransfers.id })
+        : await tx.insert(schema.investmentTransfers).values({
+            ...entry, id: values.entryId, userId: user.id, payPeriodStartDate: values.payPeriodStartDate,
+          }).returning({ id: schema.investmentTransfers.id });
+      if (isAdditional && receipt && !keepFunding) {
+        await tx.update(schema.investmentTransfers).set(cashReceipt).where(ownerEntry(receipt.id));
+      }
 
-      if (newSource === "recovery" && newOverageCents > 0) {
+      if (!keepFunding && newSource === "recovery" && newOverageCents > 0) {
         const recoveryTarget = values.recoveryTarget ?? "checking";
         const label =
           recoveryTarget === "checking"
@@ -270,7 +292,9 @@ export async function recordInvestmentTransfer(
             },
           });
       }
+      return { ok: true };
     });
+    if (!result.ok) return result;
   } catch (error) {
     console.error("recordInvestmentTransfer failed");
     return {

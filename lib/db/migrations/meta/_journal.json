@@ -15,6 +15,13 @@
       "when": 1793560691663,
       "tag": "0001_uninvested_cash_sources",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794369184252,
+      "tag": "0002_additional_investment_entries",
+      "breakpoints": true
     }
   ]
 }

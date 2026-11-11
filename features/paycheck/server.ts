@@ -9,6 +9,7 @@ import { Money } from "@/lib/money";
 import { readAllocationSources, loadAssignedInvestments, lockAllocationOwner, type AllocationDb } from "@/features/allocations/server";
 import { syncInvestmentCash } from "@/features/investments/cash-sync";
 import { loadInvestmentAdvanceForPeriod } from "@/features/investments/server";
+import { investmentPaycheckCents } from "@/features/investments/lib/funding";
 import { loadPlanSummaries } from "@/features/goals/server";
 import { computeCurrentPaycheckWaterfall } from "./lib/current-waterfall";
 import { summarizePaycheckIncome } from "./lib/income-summary";
@@ -54,10 +55,13 @@ export async function loadPaycheckState(userId: string, asOfDate: string, conn?:
     loadInvestmentAdvanceForPeriod({ userId, periodStartIso, conn: connection }),
     loadAssignedInvestments(userId, periodStartIso, connection),
     connection.select().from(schema.investmentTransfers).where(and(eq(schema.investmentTransfers.userId, userId), eq(schema.investmentTransfers.payPeriodStartDate, periodStartIso))),
-    connection.select().from(schema.paycheckAllocations).where(and(eq(schema.paycheckAllocations.userId, userId), eq(schema.paycheckAllocations.assignedPayDate, periodStartIso), isNotNull(schema.paycheckAllocations.investmentTransferId))),
+    connection.select().from(schema.paycheckAllocations).where(and(eq(schema.paycheckAllocations.userId, userId), eq(schema.paycheckAllocations.periodStartDate, periodStartIso), isNotNull(schema.paycheckAllocations.investmentTransferId))),
   ]);
-  const currentTransfer = currentInvestmentTransfers[0];
-  const reinvestedCents = currentInvestmentAllocations.filter(a => a.investmentTransferId === currentTransfer?.id && a.targetKind === "investment")
+  const currentTransfer = currentInvestmentTransfers.find(row => row.paycheckFundedCents === null);
+  const investmentAssignments = currentInvestmentAllocations.filter(a => a.investmentTransferId === currentTransfer?.id);
+  const investmentAssignedCents = investmentAssignments.reduce((sum, row) => sum + row.amountCents, 0);
+  const investmentPaycheckSpentCents = currentInvestmentTransfers.reduce((sum, row) => sum + investmentPaycheckCents(row), 0);
+  const reinvestedCents = investmentAssignments.filter(a => a.targetKind === "investment" && a.assignedPayDate === periodStartIso)
     .reduce((sum, a) => sum + a.amountCents, 0);
   const uninvestedCents = Math.max(0, (currentTransfer?.uninvestedCents ?? 0) - reinvestedCents);
   const income = summarizePaycheckIncome({ baselineCents: settings.takeHomeCents,
@@ -81,11 +85,15 @@ export async function loadPaycheckState(userId: string, asOfDate: string, conn?:
     investmentAdvanceCents: investmentAdvance.outstandingBeforeCents,
     investmentAdvanceApplicationLimitCents: investmentAdvance.recordedApplicationCents ?? undefined,
   });
+  const investmentBudgetCents = Math.max(0, waterfall.investmentPoolCents - waterfall.shortfallCents + uninvestedCents);
+  const investmentRemainingCents = investmentBudgetCents - investmentPaycheckSpentCents
+    - (investmentAssignedCents - reinvestedCents);
   return { settings, envelopeRows, goalSummaries, cardRows, financialSnapshot,
     allowance: summarizeAllowance(financialSnapshot, periodTransactionRows, periodStartIso),
     availableAllocation, anchor, currentPay, nextPay, periodStartIso,
     daysLeft: differenceInCalendarDays(nextPay, today), income, waterfall, investmentAdvance,
-    investmentBudgetCents: Math.max(0, waterfall.investmentPoolCents - waterfall.shortfallCents + uninvestedCents),
-    uninvestedCents, reinvestedCents,
+    investmentBudgetCents, investmentRemainingCents,
+    uninvestedCents, reinvestedCents, investmentAssignedCents,
+    investmentAssignments, investmentPaycheckSpentCents, currentInvestmentTransfers,
     periodTransactionRows, currentGoalTransferRows, currentCardFundingRows, currentEnvelopeFundingRows };
 }

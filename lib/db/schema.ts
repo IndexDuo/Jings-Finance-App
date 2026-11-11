@@ -498,6 +498,7 @@ export const investmentTransfers = pgTable(
         uninvestedCents: integer("uninvested_cents").notNull().default(0),
         uninvestedDate: date("uninvested_date"),
         cashBudgetCents: integer("cash_budget_cents"),
+        paycheckFundedCents: integer("paycheck_funded_cents"),
         // Only relevant when actual_cents exceeds suggested_cents.
         // future-investing | existing-cash | recovery | goal
         overageSource: text("overage_source").notNull().default("future-investing"),
@@ -516,7 +517,16 @@ export const investmentTransfers = pgTable(
         uniqueIndex("investment_transfers_user_period_unique").on(
             table.userId,
             table.payPeriodStartDate,
-        ), pgPolicy("investment_transfers_owner_read", { for: "select", to: "authenticated", using: sql`(select auth.uid()) = ${table.userId}` })],
+        ).where(sql`${table.paycheckFundedCents} IS NULL`),
+        index("investment_transfers_owner_paycheck_idx").on(table.userId, table.payPeriodStartDate),
+        check("investment_transfer_paycheck_funding", sql`
+            ${table.paycheckFundedCents} IS NULL OR (
+                ${table.paycheckFundedCents} BETWEEN 0 AND ${table.actualCents}
+                AND ${table.uninvestedCents} = 0 AND ${table.uninvestedDate} IS NULL
+                AND ${table.cashBudgetCents} IS NULL
+            )
+        `),
+        pgPolicy("investment_transfers_owner_read", { for: "select", to: "authenticated", using: sql`(select auth.uid()) = ${table.userId}` })],
 ).enableRLS();
 
 // Exactly-once record of how much of an earlier investment advance was

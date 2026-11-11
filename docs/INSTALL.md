@@ -72,6 +72,11 @@ before deploying the updated app. This adds cash-source fields and allocation
 guards. It does not change past transfer amounts or create historical balances.
 Do not rerun `db:setup` against an existing database.
 
+Before upgrading an existing app to the version with multiple investments per
+paycheck, apply `lib/db/migrations/0002_additional_investment_entries.sql`.
+Run it in the same upgrade window as the app update. The migration keeps the
+original records and their money moves.
+
 In Supabase **Authentication → URL Configuration**, set:
 
 - **Site URL:** `http://localhost:3000`

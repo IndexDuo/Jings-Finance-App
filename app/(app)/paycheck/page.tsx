@@ -22,7 +22,9 @@ import {
     PaycheckDashboard,
     type PaycheckPageData,
     type HistoryPeriod,
+    type HistoryMoneyMove,
 } from "./paycheck-dashboard";
+import { investmentOverageCents, investmentPaycheckCents, type InvestmentSource } from "@/features/investments/lib/funding";
 
 export const dynamic = "force-dynamic";
 
@@ -65,27 +67,17 @@ export default async function PaycheckPage() {
     const guiltFreeRemainingCents = summary.allowance.availableCents;
     const guiltFreeSources = summary.allowance.sources;
 
-    const [investmentTransfer] = await db
-        .select({
-            actualCents: schema.investmentTransfers.actualCents,
-            suggestedCents: schema.investmentTransfers.suggestedCents,
-            uninvestedCents: schema.investmentTransfers.uninvestedCents,
-            transferDate: schema.investmentTransfers.transferDate,
-            note: schema.investmentTransfers.note,
-            overageSource: schema.investmentTransfers.overageSource,
-            overageGoalId: schema.investmentTransfers.overageGoalId,
-        })
-        .from(schema.investmentTransfers)
-        .where(
-            and(
-                eq(schema.investmentTransfers.userId, userId),
-                eq(
-                    schema.investmentTransfers.payPeriodStartDate,
-                    periodStartIso,
-                ),
-            ),
-        )
-        .limit(1);
+    const investmentTransfer = summary.currentInvestmentTransfers.find(row => row.paycheckFundedCents === null);
+    const investmentEntries = summary.currentInvestmentTransfers.map(row => ({
+        id: row.id,
+        date: row.transferDate,
+        amountCents: row.actualCents,
+        paycheckCents: investmentPaycheckCents(row),
+        overageCents: investmentOverageCents(row),
+        overageSource: row.overageSource as InvestmentSource,
+        overageGoalId: row.overageGoalId,
+        note: row.note,
+    })).sort((a, b) => b.date.localeCompare(a.date));
     const cardFundingThisPaycheck = new Map<string, number>();
     for (const row of currentCardFundingRows) {
         cardFundingThisPaycheck.set(
@@ -293,8 +285,10 @@ export default async function PaycheckPage() {
             ),
         );
 
-    const allocationRows = await db
+    const allocationsQuery = db
         .select({
+            id: schema.paycheckAllocations.id,
+            createdAt: schema.paycheckAllocations.createdAt,
             periodStartDate: schema.paycheckAllocations.periodStartDate,
             incomeTransactionId: schema.paycheckAllocations.incomeTransactionId,
             releasedPlanId: schema.paycheckAllocations.releasedPlanId,
@@ -317,7 +311,20 @@ export default async function PaycheckPage() {
             ),
         );
 
+    const investmentsQuery = db
+        .select({
+            id: schema.investmentTransfers.id,
+            date: schema.investmentTransfers.transferDate,
+            amountCents: schema.investmentTransfers.actualCents,
+            paycheckDate: schema.investmentTransfers.payPeriodStartDate,
+        })
+        .from(schema.investmentTransfers)
+        .where(and(eq(schema.investmentTransfers.userId, userId),
+            between(schema.investmentTransfers.transferDate, historyFromIso, todayIso)));
+
     const [
+        allocationRows,
+        investmentHistory,
         historyGoalTransferRows,
         historyPriorityFundingRows,
         historyPiggyGoalRows,
@@ -325,6 +332,8 @@ export default async function PaycheckPage() {
         historyInvestmentAdvanceRows,
     ] =
         await Promise.all([
+            allocationsQuery,
+            investmentsQuery,
             db
                 .select({
                     goalId: schema.goalSavingTransfers.goalId,
@@ -397,21 +406,10 @@ export default async function PaycheckPage() {
     const priorityNameById = new Map(
         allPriorityNameRows.map((row) => [row.id, row.name]),
     );
-    const allocationsByPeriodStart = new Map<
-        string,
-        HistoryPeriod["allocations"]
-    >();
-    for (const r of allocationRows) {
-        const list = allocationsByPeriodStart.get(r.periodStartDate) ?? [];
-        list.push({
-            source: r.investmentTransferId ? "uninvested" : r.releasedBillId ? "bill-release" : r.releasedPlanId ? "plan-release" : r.incomeTransactionId ? "income" : "leftover",
-            targetKind: r.targetKind as
-                | "recovery"
-                | "goal"
-                | "envelope"
-                | "piggy"
-                | "investment",
-            label:
+    const moneyMoves: (HistoryMoneyMove & { paycheckDate: string })[] = [
+        ...investmentHistory.map(row => ({ ...row, label: "Investment" })),
+        ...allocationRows.map(r => {
+            const destination =
                 r.targetKind === "recovery"
                     ? (priorityNameById.get(r.commitmentId ?? "") ??
                       "Completed recovery")
@@ -422,11 +420,21 @@ export default async function PaycheckPage() {
                         "Deleted envelope")
                     : r.targetKind === "piggy"
                       ? "Piggy bank"
-                      : "Investment",
-            amountCents: r.amountCents,
-        });
-        allocationsByPeriodStart.set(r.periodStartDate, list);
-    }
+                              : "Investment";
+            const detail = r.investmentTransferId ? "From uninvested money"
+                : r.releasedBillId ? "From a released bill reserve"
+                : r.releasedPlanId ? "From completed plan leftovers"
+                : r.incomeTransactionId ? "From extra income" : "From unused envelope budgets";
+            return {
+                id: r.id,
+                date: format(todayInUserTz(settings.timezone, r.createdAt), "yyyy-MM-dd"),
+                paycheckDate: r.periodStartDate,
+                label: `To ${destination}`,
+                detail,
+                amountCents: r.amountCents,
+            };
+        }),
+    ].sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
 
     function aggregateWindow(startIso: string, endIso: string) {
         const { income, fixed, variable, guiltFree } = summarizeTransactions(historyTxRows, startIso, endIso);
@@ -526,7 +534,7 @@ export default async function PaycheckPage() {
             priorityPlans: agg.priorityPlans,
             piggyTransfers: agg.piggyTransfers,
             investmentAdvances: agg.investmentAdvances,
-            allocations: allocationsByPeriodStart.get(startIsoStr) ?? [],
+            moneyMoves: moneyMoves.filter(move => move.paycheckDate === startIsoStr),
         });
     }
 
@@ -567,10 +575,7 @@ export default async function PaycheckPage() {
             priorityPlans: agg.priorityPlans,
             piggyTransfers: agg.piggyTransfers,
             investmentAdvances: agg.investmentAdvances,
-            // Aggregate allocations falling in this calendar month.
-            allocations: Array.from(allocationsByPeriodStart.entries())
-                .filter(([d]) => d >= effectiveStartIso && d <= endIsoStr)
-                .flatMap(([, v]) => v),
+            moneyMoves: moneyMoves.filter(move => move.date >= effectiveStartIso && move.date <= endIsoStr),
         });
         void monthAnchor;
     }
@@ -623,6 +628,8 @@ export default async function PaycheckPage() {
           }),
         investmentPoolCents: waterfall.investmentPoolCents,
         investmentBudgetCents: summary.investmentBudgetCents,
+        investmentEntries,
+        investmentRemainingCents: summary.investmentRemainingCents,
         investmentAdvance: {
             outstandingBeforeCents: investmentAdvance.outstandingBeforeCents,
             appliedThisPaycheckCents:

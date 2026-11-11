@@ -1,9 +1,10 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { schema } from "@/lib/db";
 import type { AllocationDb } from "@/features/allocations/server";
 import { loadFinancialConfiguration } from "@/features/financial-settings/server";
 import { loadPaycheckState } from "@/features/paycheck/server";
 import { reconcileInvestmentCash } from "./lib/cash-reconciliation";
+import { investmentPaycheckCents } from "./lib/funding";
 
 async function initialCashBudget(userId: string, transfer: typeof schema.investmentTransfers.$inferSelect,
   currentBudgetCents: number, conn: AllocationDb) {
@@ -36,7 +37,8 @@ export async function preserveInvestmentAllocation(userId: string, periodStart: 
   await conn.update(schema.investmentTransfers).set({
     cashBudgetCents: sql`greatest(0, coalesce(${schema.investmentTransfers.cashBudgetCents}, ${schema.investmentTransfers.suggestedCents}) + ${deltaCents})`,
   }).where(and(eq(schema.investmentTransfers.userId, userId),
-    eq(schema.investmentTransfers.payPeriodStartDate, periodStart)));
+    eq(schema.investmentTransfers.payPeriodStartDate, periodStart),
+    isNull(schema.investmentTransfers.paycheckFundedCents)));
 }
 
 /** Caller holds the owner's settings lock and commits this with its mutation. */
@@ -46,7 +48,8 @@ export async function syncInvestmentCash(userId: string, asOfDate: string, conn:
   if (!transfers.some(transfer => transfer.transferDate <= asOfDate)) return;
   const configuration = await loadFinancialConfiguration(userId, conn);
   const periodStart = configuration.period(asOfDate).current;
-  const transfer = transfers.find(row => row.payPeriodStartDate === periodStart);
+  const periodTransfers = transfers.filter(row => row.payPeriodStartDate === periodStart);
+  const transfer = periodTransfers.find(row => row.paycheckFundedCents === null);
   if (!transfer || transfer.transferDate > asOfDate) return;
   const summary = await loadPaycheckState(userId, asOfDate, conn);
   const allocations = await conn.select().from(schema.paycheckAllocations).where(and(
@@ -54,7 +57,7 @@ export async function syncInvestmentCash(userId: string, asOfDate: string, conn:
     eq(schema.paycheckAllocations.investmentTransferId, transfer.id),
   ));
   const next = reconcileInvestmentCash({
-    actualCents: transfer.actualCents,
+    actualCents: periodTransfers.reduce((sum, row) => sum + investmentPaycheckCents(row), 0),
     previousBudgetCents: transfer.cashBudgetCents ?? await initialCashBudget(userId, transfer, summary.investmentBudgetCents, conn),
     currentBudgetCents: summary.investmentBudgetCents,
     uninvestedCents: transfer.uninvestedCents,

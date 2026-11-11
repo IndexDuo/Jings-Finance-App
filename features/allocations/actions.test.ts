@@ -58,6 +58,49 @@ describe("confirmed uninvested paycheck cash", () => {
   async function source() {
     return (await loadAllocationSources(state.user, state.today)).sources.find(s => s.kind === "uninvested")!;
   }
+  it("records a second investment without spending the cash already assigned or overwriting the first date", async () => {
+    await db.update(schema.settings).set({ takeHomeCents: 121077 });
+    await db.insert(schema.envelopes).values({ id: envelopeId, userId: state.user, name: "Groceries",
+      accrualStartDate: state.today, periodAmountCents: 0, period: "monthly", category: "variable", rolloverBehavior: "reset" });
+    await db.insert(schema.envelopePolicyVersions).values({ userId: state.user, envelopeId, effectiveDate: state.today,
+      periodAmountCents: 0, period: "monthly", category: "variable", rolloverBehavior: "reset", recurrence: "recurring" });
+    expect(await record(8800)).toEqual({ ok: true });
+    const cash = await source();
+    expect(await recordAllocations({ periodStartIso: state.today, sources: [cash],
+      entries: [
+        { targetKind: "envelope", envelopeId, amountCents: 15000 },
+        { targetKind: "investment", amountCents: cash.amountCents - 15000 },
+      ] })).toEqual({ ok: true });
+    const moves = await db.select().from(schema.paycheckAllocations);
+    const move = moves.find(row => row.targetKind === "envelope")!;
+    state.today = "2031-03-31";
+    const input = { entryId: "40000000-0000-4000-8000-000000000001", payPeriodStartDate: "2031-03-28",
+      transferDate: state.today, actualCents: 100000, suggestedCents: 97277 };
+    expect(await recordInvestmentTransfer(input)).toMatchObject({
+      ok: false, shortfall: { availableCents: 97277, cents: 2723, move: { id: move.id } },
+    });
+    expect(await db.select().from(schema.investmentTransfers)).toHaveLength(1);
+
+    const confirmed = { ...input, sourceConfirmed: true, overageSource: "existing-cash" as const };
+    expect(await recordInvestmentTransfer(confirmed)).toEqual({ ok: true });
+    expect(await recordInvestmentTransfer(confirmed)).toEqual({ ok: true });
+    expect(await db.select().from(schema.investmentTransfers)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: cash.investmentTransferId, actualCents: 8800, transferDate: "2031-03-28", uninvestedCents: cash.amountCents }),
+      expect.objectContaining({ id: input.entryId, actualCents: 100000, transferDate: "2031-03-31",
+        paycheckFundedCents: 97277, overageSource: "existing-cash" }),
+    ]));
+    expect(await db.select().from(schema.paycheckAllocations)).toEqual(moves);
+    expect(await source()).toBeUndefined();
+
+    expect(await recordInvestmentTransfer({ ...input, edit: true, transferDate: "2031-03-30", note: "Brokerage" })).toEqual({ ok: true });
+    const transfers = await db.select().from(schema.investmentTransfers);
+    expect(transfers).toHaveLength(2);
+    expect(transfers.find(row => row.id === input.entryId)).toMatchObject({
+      transferDate: "2031-03-30", note: "Brokerage", paycheckFundedCents: 97277, overageSource: "existing-cash",
+    });
+    expect(transfers.find(row => row.id === cash.investmentTransferId)?.transferDate).toBe("2031-03-28");
+    expect((await loadInvestmentAdvanceForPeriod({ userId: state.user, periodStartIso: "2031-04-11" })).outstandingBeforeCents).toBe(0);
+  });
   async function skipAfterInvesting() {
     const [bill] = await db.insert(schema.fixedExpenses).values({ userId: state.user,
       name: "Fictional AI subscription", amountCents: 2000, frequency: "monthly", dueDay: 28,

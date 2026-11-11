@@ -12,6 +12,7 @@ import { AllocationEditorSheet } from "./allocation-prompt";
 import type {
     HistoryData,
     HistoryPeriod,
+    HistoryReview,
     PendingAllocation,
 } from "./paycheck-dashboard";
 
@@ -68,10 +69,14 @@ export function HistoryCard({
     data,
     allocationEditor,
     investmentPoolCents,
+    review,
+    onCloseReview,
 }: {
     data: HistoryData;
     allocationEditor: PendingAllocation | null;
     investmentPoolCents: number;
+    review?: HistoryReview | null;
+    onCloseReview?: () => void;
 }) {
     const [mode, setMode] = useState<Mode>("paycheck");
     const [allOpen, setAllOpen] = useState(false);
@@ -103,23 +108,14 @@ export function HistoryCard({
     const periods = mode === "paycheck" ? data.paychecks : data.months;
     const preview = periods.slice(0, PREVIEW_COUNT);
     const hasMore = periods.length > PREVIEW_COUNT;
-    const selected = receiptIdx === null ? null : periods[receiptIdx];
+    const reviewedMonth = review && data.months.find(period =>
+        period.startIso <= review.date && period.endIso >= review.date);
+    const selected = reviewedMonth || (receiptIdx === null ? null : periods[receiptIdx]);
     const reallocateAvailable =
-        !!allocationEditor &&
+        !reviewedMonth && !!allocationEditor &&
         mode === "paycheck" &&
         !!selected &&
         selected.startIso === allocationEditor.periodStartIso;
-
-    if (periods.length === 0) {
-        return (
-            <GroupedCard header="History">
-                <div className="px-5 py-6 text-center text-[13px] text-tertiary-label">
-                    No past periods yet. Check back after your first paycheck
-                    rolls over.
-                </div>
-            </GroupedCard>
-        );
-    }
 
     return (
         <>
@@ -157,6 +153,11 @@ export function HistoryCard({
                         />
                     ))}
                 </ul>
+                {periods.length === 0 && (
+                    <p className="px-5 py-6 text-center text-[13px] text-secondary-label">
+                        No past periods yet.
+                    </p>
+                )}
 
                 {hasMore && (
                     <button
@@ -221,7 +222,10 @@ export function HistoryCard({
             {/* Receipt detail */}
             <BottomSheet
                 open={selected !== null}
-                onClose={() => setReceiptIdx(null)}
+                onClose={() => {
+                    if (review) onCloseReview?.();
+                    else setReceiptIdx(null);
+                }}
                 title={
                     selected?.kind === "paycheck"
                         ? fmtRange(selected.startIso, selected.endIso)
@@ -231,7 +235,9 @@ export function HistoryCard({
             >
                 {selected && (
                     <ReceiptBody
+                        key={selected.startIso + (review?.id ?? "")}
                         period={selected}
+                        reviewId={review?.id}
                         canReallocate={reallocateAvailable}
                         onReallocate={() => {
                             setReceiptIdx(null);
@@ -305,13 +311,24 @@ function ReceiptBody({
     period,
     canReallocate,
     onReallocate,
+    reviewId,
 }: {
     period: HistoryPeriod;
     canReallocate: boolean;
     onReallocate: () => void;
+    reviewId?: string;
 }) {
     const net = periodNet(period);
     const [infoOpen, setInfoOpen] = useState(false);
+    useEffect(() => {
+        if (!reviewId) return;
+        const frame = requestAnimationFrame(() => {
+            const row = document.getElementById("money-move-" + reviewId);
+            row?.scrollIntoView({ block: "center" });
+            row?.focus({ preventScroll: true });
+        });
+        return () => cancelAnimationFrame(frame);
+    }, [reviewId]);
     return (
         <div className="space-y-4 pb-6">
             {period.kind === "month" && (
@@ -455,29 +472,22 @@ function ReceiptBody({
                         </ReceiptSection>
                     ),
             )}
-            {period.allocations.length > 0 && (
-                <ReceiptSection
-                    label="Allocations"
-                    total={period.allocations.reduce(
-                        (sum, a) => sum + a.amountCents,
-                        0,
-                    )}
-                >
-                    {period.allocations.map((a, i) => (
-                        <ReceiptLine
-                            key={i}
-                            label={a.label}
-                            amount={a.amountCents}
-                            sublabel={
-                                a.source === "income"
-                                    ? "From extra income"
-                                    : a.source === "bill-release"
-                                      ? "From a released bill reserve"
-                                    : a.source === "plan-release"
-                                      ? "From completed plan leftovers"
-                                      : "From unused envelope budgets"
-                            }
-                        />
+            {period.moneyMoves.length > 0 && (
+                <ReceiptSection label="Money moves" initiallyOpen>
+                    {period.moneyMoves.map(move => (
+                        <div key={move.id} id={"money-move-" + move.id}
+                            tabIndex={move.id === reviewId ? -1 : undefined}
+                            className={cn(
+                                "border-b border-separator py-2 first:pt-0 last:border-0 last:pb-0",
+                                move.id === reviewId && "bg-secondary-system-bg outline-none",
+                            )}>
+                            <ReceiptLine
+                                label={move.label}
+                                amount={move.amountCents}
+                                sublabel={move.detail}
+                                date={fmtDetailDate(move.date)}
+                            />
+                        </div>
                     ))}
                 </ReceiptSection>
             )}
@@ -535,10 +545,12 @@ function ReceiptLine({
     label,
     amount,
     sublabel,
+    date,
 }: {
     label: string;
     amount: number;
     sublabel?: string;
+    date?: string;
 }) {
     return (
         <div className="flex items-start justify-between gap-4 text-[14px]">
@@ -549,6 +561,7 @@ function ReceiptLine({
                         {sublabel}
                     </p>
                 )}
+                {date && <p className="mt-0.5 text-[12px] text-secondary-label">{date}</p>}
             </div>
             <span className="shrink-0 tabular-nums text-label">
                 {fmt(amount)}

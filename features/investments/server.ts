@@ -1,4 +1,5 @@
 import { and, eq, lt, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import { db, schema } from "@/lib/db";
 
@@ -13,11 +14,26 @@ export async function loadInvestmentAdvanceForPeriod(args: {
   conn?: Pick<typeof db, "select">;
 }) {
   const { userId, periodStartIso, conn = db } = args;
+  const transfers = schema.investmentTransfers;
+  const additional = alias(transfers, "additional_investments");
+  const assignments = schema.paycheckAllocations;
   const [[transferTotals], [applicationTotals], currentApplication] =
     await Promise.all([
       conn
         .select({
-          cents: sql<number>`coalesce(sum(greatest(0, ${schema.investmentTransfers.actualCents} - greatest(${schema.investmentTransfers.suggestedCents}, coalesce(${schema.investmentTransfers.cashBudgetCents}, ${schema.investmentTransfers.suggestedCents})))), 0)`,
+          cents: sql<number>`coalesce(sum(greatest(0, ${transfers.actualCents} - coalesce(
+            ${transfers.paycheckFundedCents},
+            greatest(${transfers.suggestedCents}, ${transfers.cashBudgetCents} - coalesce((
+              select sum(${additional.paycheckFundedCents}) from ${transfers} as ${sql.identifier("additional_investments")}
+              where ${additional.userId} = ${transfers.userId}
+                and ${additional.payPeriodStartDate} = ${transfers.payPeriodStartDate}
+            ), 0) - coalesce((
+              select sum(${assignments.amountCents}) from ${assignments}
+              where ${assignments.investmentTransferId} = ${transfers.id}
+                and (${assignments.targetKind} <> 'investment'
+                  or ${assignments.assignedPayDate} is distinct from ${transfers.payPeriodStartDate})
+            ), 0))
+          ))), 0)`,
         })
         .from(schema.investmentTransfers)
         .where(
