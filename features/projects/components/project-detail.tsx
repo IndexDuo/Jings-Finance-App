@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Info, Pencil, Plus } from "lucide-react";
@@ -15,6 +15,29 @@ import { PurchaseSheet } from "./purchase-sheet";
 import { FinishSheet } from "./finish-sheet";
 
 type Sheet = "edit" | "organize" | "move" | "funding" | null;
+
+function ExpenseGroup({ preferenceKey, summary, children }: {
+  preferenceKey: string;
+  summary: ReactNode;
+  children: ReactNode;
+}) {
+  const restoreExpansion = useCallback((details: HTMLDetailsElement | null) => {
+    if (!details) return;
+    try { details.open = localStorage.getItem(preferenceKey) === "open"; } catch { /* Optional preference. */ }
+  }, [preferenceKey]);
+
+  return <details ref={restoreExpansion} onToggle={event => {
+    try {
+      if (event.currentTarget.open) localStorage.setItem(preferenceKey, "open");
+      else localStorage.removeItem(preferenceKey);
+    } catch { /* Optional preference. */ }
+  }} className="group border-b border-black/5 last:border-0">
+    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium">
+      {summary}
+    </summary>
+    {children}
+  </details>;
+}
 
 export function ProjectDetail({ userId, project: p, today }: { userId: string; project: ProjectRow; today: string }) {
   const router = useRouter();
@@ -31,10 +54,11 @@ export function ProjectDetail({ userId, project: p, today }: { userId: string; p
   const [showGroupInput, setShowGroupInput] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [destination, setDestination] = useState<string | null>(null);
+  const [movedCount, setMovedCount] = useState(0);
   useEffect(() => {
     if (!p.archived) { try { localStorage.setItem(rememberKey(userId), p.id); } catch { /* Optional preference. */ } }
   }, [userId, p.id, p.archived]);
-  function open(next: Sheet) { setError(""); setSheet(next); }
+  function open(next: Sheet) { setError(""); setMovedCount(0); setSheet(next); }
   function saveGroup() {
     start(async () => {
       const result = await organizeProject({ kind: "group", goalId: p.id, id: groupEdit ?? undefined, name: groupName });
@@ -42,7 +66,27 @@ export function ProjectDetail({ userId, project: p, today }: { userId: string; p
       else { setError(""); setShowGroupInput(false); setGroupName(""); setGroupEdit(null); router.refresh(); }
     });
   }
-  const groupRows = [...p.groups, { id: "other", name: "Other" }].map(g => ({ ...g, purchases: p.purchases.filter(t => (p.groups.some(group => group.id === t.groupId) ? t.groupId : "other") === g.id) }));
+  function movePurchases() {
+    setError("");
+    setMovedCount(0);
+    start(async () => {
+      const result = await organizeProject({ kind: "move", goalId: p.id, groupId: destination, transactionIds: selected });
+      if (!result.ok) {
+        setError(result.error);
+        return;
+      }
+      setMovedCount(selected.length);
+      setSelected([]);
+      setDestination(null);
+      router.refresh();
+    });
+  }
+  const groupNames = new Map(p.groups.map(group => [group.id, group.name]));
+  const groupRows = [...p.groups, { id: "other", name: "Other" }].map(group => ({
+    ...group,
+    purchases: p.purchases.filter(purchase =>
+      (purchase.groupId && groupNames.has(purchase.groupId) ? purchase.groupId : "other") === group.id),
+  }));
   return <main className="mx-auto max-w-xl px-5 pt-5 pb-28">
     <Link href="/projects?list=1" className="-ml-2 mb-3 inline-flex min-h-11 items-center text-system-blue"><ChevronLeft size={22} />Projects</Link>
     <header className="mb-5 flex items-center justify-between gap-3"><h1 className="text-[28px] font-semibold"><span aria-hidden>{p.emoji ? `${p.emoji} ` : ""}</span>{p.name}</h1>{!p.archived && <button aria-label="Edit project" className="flex size-11 shrink-0 items-center justify-center text-system-blue" onClick={() => { setName(p.name); setBudget(p.targetCents); setDate(p.targetDate); open("edit"); }}><Pencil size={21} /></button>}</header>
@@ -55,10 +99,13 @@ export function ProjectDetail({ userId, project: p, today }: { userId: string; p
     <section className={`${card} mt-5`}>
       <header className="flex min-h-16 items-center justify-between border-b border-black/5 px-5"><h2 className="font-semibold">Expenses</h2>{!p.archived && <div className="flex items-center gap-2"><button className="min-h-11 text-sm font-medium text-system-blue" onClick={() => { setShowGroupInput(false); open("organize"); }}>Organize</button><button aria-label="Add purchase" className="flex size-11 items-center justify-center text-system-blue" onClick={() => setPurchase("new")}><Plus size={22} /></button></div>}</header>
       {p.purchases.length === 0 && <p className="px-5 py-6 text-sm text-secondary-label">Purchases linked to this plan will appear here.</p>}
-      {groupRows.filter(g => g.purchases.length > 0).map(g => <details key={g.id} open className="group border-b border-black/5 last:border-0">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-5 py-4 font-medium"><span>{g.name}</span><span className="flex items-center gap-3 tabular-nums">{money(-g.purchases.reduce((sum, t) => sum + t.amountCents, 0))}<ChevronRight size={16} className="text-secondary-label transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none" /></span></summary>
+      {groupRows.filter(g => g.purchases.length > 0).map(g => <ExpenseGroup
+        key={g.id}
+        preferenceKey={`projects:expense-group:${userId}:${p.id}:${g.id}`}
+        summary={<><span>{g.name}</span><span className="flex items-center gap-3 tabular-nums">{money(-g.purchases.reduce((sum, t) => sum + t.amountCents, 0))}<ChevronRight size={16} aria-hidden className="text-secondary-label transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none" /></span></>}
+      >
         <ul className="pb-2">{g.purchases.map(t => <li key={t.id}><button disabled={p.archived} aria-label={`Edit ${t.note || "purchase"}`} onClick={() => setPurchase(t)} className="flex w-full items-start justify-between gap-4 px-5 py-3 text-left"><span className="min-w-0"><span className="block break-words text-[15px]">{t.note || "Purchase"}</span><span className="mt-1 block text-xs text-secondary-label">{format(parseLocalIsoDate(t.date), "MMM d, yyyy")}</span></span><span className="shrink-0 text-[15px] tabular-nums">{money(-t.amountCents)}</span></button></li>)}</ul>
-      </details>)}
+      </ExpenseGroup>)}
     </section>
     {purchase !== null && <PurchaseSheet key={purchase === "new" ? "new" : purchase.id} project={p} purchase={purchase === "new" ? undefined : purchase} today={today} onClose={() => setPurchase(null)} />}
     {!p.archived && <button className="mt-5 min-h-11 w-full text-system-blue" onClick={() => setFinishing(true)}>Finish project</button>}
@@ -85,14 +132,29 @@ export function ProjectDetail({ userId, project: p, today }: { userId: string; p
         <button disabled={pending} className={primary} onClick={() => setSheet(null)}>Done</button>
       </div>}
       {sheet === "move" && <div className="space-y-5">
-        <button className="min-h-11 text-system-blue" onClick={() => open("organize")}>Back to groups</button>
-        <div className={card}>{p.purchases.map(t => <label key={t.id} className="flex min-h-14 items-center gap-3 border-b border-black/5 px-4 py-3 last:border-0"><input type="checkbox" checked={selected.includes(t.id)} onChange={e => setSelected(current => e.target.checked ? [...current, t.id] : current.filter(id => id !== t.id))} className="size-5 accent-system-blue" /><span className="min-w-0 flex-1 text-sm">{t.note || "Purchase"}</span><span className="text-sm tabular-nums">{money(-t.amountCents)}</span></label>)}</div>
-        <fieldset><legend className="mb-2 text-sm text-secondary-label">Move to</legend><div className="flex flex-wrap gap-2">{[...p.groups, { id: "", name: "Other" }].map(g => <button key={g.id} aria-pressed={destination === (g.id || null)} onClick={() => setDestination(g.id || null)} className={`min-h-11 rounded-full border border-black/10 px-4 text-sm ${destination === (g.id || null) ? "bg-black text-white" : "bg-secondary-system-bg"}`}>{g.name}</button>)}</div></fieldset>
+        <div className="flex items-center justify-between gap-3 text-system-blue">
+          <button disabled={pending} className="min-h-11 disabled:opacity-50" onClick={() => open("organize")}>Back to groups</button>
+          <button disabled={pending} className="min-h-11 disabled:opacity-50" onClick={() => setSheet(null)}>Done</button>
+        </div>
+        <fieldset disabled={pending} className={card} aria-label="Purchases to move">
+          {p.purchases.map(t => <label key={t.id} className="flex min-h-14 items-center gap-3 border-b border-black/5 px-4 py-3 last:border-0">
+            <input type="checkbox" checked={selected.includes(t.id)} onChange={event => {
+              const checked = event.currentTarget.checked;
+              setSelected(current => checked ? [...current, t.id] : current.filter(id => id !== t.id));
+            }} className="size-5 shrink-0 accent-system-blue" />
+            <span className="min-w-0 flex-1 break-words">
+              <span className="block text-sm">{t.note || "Purchase"}</span>
+              <span className="mt-0.5 block text-xs text-secondary-label">{groupNames.get(t.groupId ?? "") ?? "Other"}</span>
+            </span>
+            <span className="shrink-0 text-sm tabular-nums">{money(-t.amountCents)}</span>
+          </label>)}
+        </fieldset>
+        <fieldset disabled={pending}><legend className="mb-2 text-sm text-secondary-label">Move to</legend><div className="flex flex-wrap gap-2">{[...p.groups, { id: "", name: "Other" }].map(g => <button key={g.id} aria-pressed={destination === (g.id || null)} onClick={() => setDestination(g.id || null)} className={`min-h-11 rounded-full border border-black/10 px-4 text-sm ${destination === (g.id || null) ? "bg-black text-white" : "bg-secondary-system-bg"}`}>{g.name}</button>)}</div></fieldset>
         {error && <p role="alert" className="text-system-red">{error}</p>}
-        <button disabled={pending || selected.length === 0} className={primary} onClick={() => start(async () => {
-          const result = await organizeProject({ kind: "move", goalId: p.id, groupId: destination, transactionIds: selected });
-          if (!result.ok) setError(result.error); else { open("organize"); router.refresh(); }
-        })}>{pending ? "Moving…" : "Move purchases"}</button>
+        {movedCount > 0 && <p role="status" className="text-sm text-secondary-label">
+          {movedCount === 1 ? "1 purchase moved." : `${movedCount} purchases moved.`}
+        </p>}
+        <button disabled={pending || selected.length === 0} className={primary} onClick={movePurchases}>{pending ? "Moving…" : "Move purchases"}</button>
       </div>}
       {sheet === "funding" && <dl className="space-y-4 py-2">{[["Funded toward plan", p.fundedCents], ["Still to fund", p.remainingCents], ["Available to spend", p.availableCents]].map(([label, amount]) => <div key={label} className="flex justify-between gap-3"><dt className="text-secondary-label">{label}</dt><dd className="font-medium tabular-nums">{money(Number(amount))}</dd></div>)}</dl>}
     </BottomSheet>
