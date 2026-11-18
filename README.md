@@ -120,9 +120,9 @@ Requirements: Node.js 24, npm, and a fresh Supabase project with email/password 
 3. Copy `.env.example` to `.env.local` and set the project URL, public anon/publishable key, and server-only PostgreSQL connection string.
 4. Run `npm run db:setup` once against that blank project.
 5. Configure the Auth Site URL and callback allowlist, including `http://localhost:3000/auth/callback` for local use.
-6. Run `npm run dev`, open `http://localhost:3000/signup`, confirm the email, and complete onboarding.
+6. Run `npm run dev`, [create your first login in Supabase](docs/INSTALL.md#create-your-first-login-in-supabase), then sign in at `http://localhost:3000/login` and complete onboarding.
 
-For a local production build, run `npm run build` followed by `npm start`. Hosted installations need their own environment variables, HTTPS, Auth origins, and email delivery configuration. See [full installation instructions](docs/INSTALL.md), including Supabase certificate trust and password-reset templates.
+For a local production build, run `npm run build` followed by `npm start`. Hosted installations need their own environment variables, HTTPS, and Auth origins. See [full installation instructions](docs/INSTALL.md), including Supabase certificate trust and email delivery for signup and password reset.
 
 Existing installations receiving application-only updates keep their database and environment configuration. Do not rerun the fresh database setup over an existing installation.
 

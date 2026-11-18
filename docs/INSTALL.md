@@ -23,7 +23,7 @@ On other systems, install Node 24, check `node -v`, then run `npm ci` in the app
 1. Choose **New project** in Supabase. Use a name you will recognize, such as `jings-finance-personal`.
 2. Generate a database password and save it. Choose a region near you. The optional GitHub connection can be skipped.
 3. Keep the Data API enabled. The app's setup command supplies its own rules for reading and writing records.
-4. When the project is ready, open **Authentication → Sign In / Providers**. Allow new users to sign up, enable Email sign-in, and keep email confirmation enabled.
+4. When the project is ready, open **Authentication → Sign In / Providers** and enable Email sign-in. If you want people to create their own accounts through the app, allow new users to sign up and keep email confirmation enabled.
 5. Get the project URL, public publishable/anon key, and PostgreSQL connection string from the project settings.
 
 Use a new, empty project. The setup command refuses a database that already has app tables.
@@ -88,7 +88,17 @@ Use the same hostname when opening the app. Then run:
 npm run dev
 ```
 
-Open `http://localhost:3000/signup`, create an account, confirm your email, and finish setup. Bills and envelopes can be added later; see [changing them in Settings](USER_GUIDE.md#change-bills-and-envelopes).
+### Create your first login in Supabase
+
+You can create a confirmed account in the Supabase dashboard and sign in right away.
+
+1. Open your Supabase project and go to **Authentication → Users**.
+2. Click **Add user → Create new user**.
+3. Enter the email address and password you want to use for the app. Leave **Auto Confirm User** checked, then click **Create user**.
+4. Open `http://localhost:3000/login` and sign in with that email and password. For a hosted copy, open `/login` on your app's HTTPS URL.
+5. Complete onboarding. You can [add bills and envelopes later in Settings](USER_GUIDE.md#change-bills-and-envelopes).
+
+If you enabled signups in Supabase, you can also open `/signup` on your app, create an account, confirm your email, and complete onboarding.
 
 ## 5. Put your copy online
 
@@ -118,7 +128,7 @@ Password reset:
 
 Set the correct Site URL first. After changing a password, the app signs you out so you can sign in with the new one.
 
-Supabase's default email service has testing limits. For reliable hosted email, configure your own SMTP email service in Supabase. Keep email passwords and service-role keys out of browser settings such as `NEXT_PUBLIC_*`.
+Creating a user with **Auto Confirm User** lets that person sign in without a confirmation email. Email-based signup and password reset still require working email delivery. [Supabase's default email service](https://supabase.com/docs/guides/auth/auth-smtp) only sends to addresses on the project team. Configure custom SMTP in Supabase to send to other addresses. Keep email passwords and service-role keys out of browser settings such as `NEXT_PUBLIC_*`.
 
 ## Updates and backups
 
